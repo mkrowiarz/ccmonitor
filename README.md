@@ -32,6 +32,30 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Glo
 
 ## Install
 
+### Pre-built binary
+
+Download the latest release for your platform:
+
+```bash
+# macOS (Apple Silicon)
+curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonitor-darwin-arm64 -o /usr/local/bin/ccmonitor && chmod +x /usr/local/bin/ccmonitor
+
+# macOS (Intel)
+curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonitor-darwin-amd64 -o /usr/local/bin/ccmonitor && chmod +x /usr/local/bin/ccmonitor
+
+# Linux (x86_64)
+curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonitor-linux-amd64 -o /usr/local/bin/ccmonitor && chmod +x /usr/local/bin/ccmonitor
+
+# Linux (arm64)
+curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonitor-linux-arm64 -o /usr/local/bin/ccmonitor && chmod +x /usr/local/bin/ccmonitor
+```
+
+### Go install
+
+```
+go install github.com/michal/ccmonitor@latest
+```
+
 ### From source
 
 ```
@@ -44,12 +68,6 @@ Or to a custom location:
 
 ```
 make install PREFIX=~/.local
-```
-
-### Go install
-
-```
-go install github.com/michal/ccmonitor@latest
 ```
 
 ### Uninstall
