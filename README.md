@@ -59,6 +59,10 @@ ccmonitor -interval 10       # 10s refresh
 | `r` | Force refresh |
 | `q` | Quit |
 
+## Author
+
+Michał Krowiarz — [@mkrowiarz](https://github.com/mkrowiarz)
+
 ## License
 
 MIT
