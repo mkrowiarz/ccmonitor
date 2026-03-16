@@ -11,11 +11,11 @@ import (
 
 // renderHeader renders the top bar showing app title, tabs, status, refresh interval, and time.
 func renderHeader(s Styles, snapshot *domain.BackendSnapshot, interval int, activeTab int, width int) string {
-	tabNames := []string{"Dashboard", "Activity", "Processes"}
+	tabNames := []string{"Dashboard", "Activity", "Analytics"}
 	var tabs []string
 	for i, name := range tabNames {
 		// Hide Processes tab label when narrow
-		if i == tabProcesses && width < 100 {
+		if i == tabAnalytics && width < 100 {
 			continue
 		}
 		label := fmt.Sprintf(" %d:%s ", i+1, name)

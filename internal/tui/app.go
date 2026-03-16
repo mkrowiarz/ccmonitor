@@ -15,7 +15,7 @@ import (
 const (
 	tabDashboard = iota
 	tabActivity
-	tabProcesses
+	tabAnalytics
 	tabCount // sentinel for wrapping
 )
 
@@ -133,9 +133,9 @@ func (m Model) View() string {
 	var body string
 	switch m.activeTab {
 	case tabActivity:
-		body = renderActivityView(m.styles, usage, events, m.width, panelHeight)
-	case tabProcesses:
-		body = renderProcessesView(m.styles, sessions, m.width, panelHeight)
+		body = renderActivityTab(m.styles, sessions, events, m.width, panelHeight)
+	case tabAnalytics:
+		body = renderAnalyticsTab(m.styles, usage, m.width, panelHeight)
 	default:
 		body = m.renderDashboard(usage, sessions, rateLimits, panelHeight)
 	}

@@ -3,9 +3,11 @@ package tui
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/NimbleMarkets/ntcharts/barchart"
 	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/michal/ccmonitor/internal/domain"
@@ -74,23 +76,76 @@ func renderLifetimePanel(s Styles, usage *domain.UsageSummary, width, height int
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 }
 
-// renderActivityView renders the Activity tab: sparkline + recent messages.
-func renderActivityView(s Styles, usage *domain.UsageSummary, events []domain.RecentEvent, width, height int) string {
-	// --- Left side: sparkline chart ---
-	sparkW := width / 3
-	if sparkW < 24 {
-		sparkW = 24
+// Model colors for bar chart segments.
+var modelColors = []string{colorOk, colorModel, colorDegraded, colorError}
+
+// renderActivityTab renders the Activity tab: recent prompts + processes.
+func renderActivityTab(s Styles, sessions []domain.ActiveSession, events []domain.RecentEvent, width, height int) string {
+	halfW := width / 2
+	rightW := width - halfW
+
+	recentPanel := renderRecentPanel(s, events, halfW, height)
+	processPanel := renderProcessesView(s, sessions, rightW, height)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, recentPanel, processPanel)
+}
+
+// renderRecentPanel renders the recent activity list.
+func renderRecentPanel(s Styles, events []domain.RecentEvent, width, height int) string {
+	inner := width - panelOverhead - 2
+	var lines []string
+	lines = append(lines, s.Title.Render("RECENT"))
+
+	if len(events) == 0 {
+		lines = append(lines, s.Dim.Render("No recent activity"))
+	} else {
+		maxEvents := height - 4
+		if maxEvents < 1 {
+			maxEvents = 1
+		}
+		for i, ev := range events {
+			if i >= maxEvents {
+				break
+			}
+			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
+			proj := s.Label.Render(truncate(ev.ProjectName, 14))
+			used := lipgloss.Width(timeStr) + 1 + lipgloss.Width(proj) + 1
+			remaining := inner - used
+			if remaining < 10 {
+				remaining = 10
+			}
+			display := truncate(ev.Display, remaining)
+			lines = append(lines, fmt.Sprintf("%s %s %s", timeStr, proj, display))
+		}
 	}
-	sparkInner := sparkW - panelOverhead
-	var sparkLines []string
-	sparkLines = append(sparkLines, s.Title.Render("MESSAGES PER DAY"))
+
+	content := strings.Join(lines, "\n")
+	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+}
+
+// renderAnalyticsTab renders the Analytics tab: sparkline + token bar chart.
+func renderAnalyticsTab(s Styles, usage *domain.UsageSummary, width, height int) string {
+	halfW := width / 2
+	rightW := width - halfW
+
+	sparkPanel := renderSparklinePanel(s, usage, halfW, height)
+	barPanel := renderTokenBarPanel(s, usage, rightW, height)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, sparkPanel, barPanel)
+}
+
+// renderSparklinePanel renders a full-height sparkline of messages per day.
+func renderSparklinePanel(s Styles, usage *domain.UsageSummary, width, height int) string {
+	inner := width - panelOverhead
+	var lines []string
+	lines = append(lines, s.Title.Render("MESSAGES PER DAY"))
 
 	if usage != nil && len(usage.DailyActivity) >= 2 {
 		first := usage.DailyActivity[0].Date
 		last := usage.DailyActivity[len(usage.DailyActivity)-1].Date
-		sparkLines = append(sparkLines, s.Dim.Render(first+" → "+last))
+		lines = append(lines, s.Dim.Render(first+" → "+last))
 
-		sparkH := height - 2 - len(sparkLines) - 1
+		sparkH := height - 2 - len(lines) - 1
 		if sparkH < 1 {
 			sparkH = 1
 		}
@@ -100,52 +155,112 @@ func renderActivityView(s Styles, usage *domain.UsageSummary, events []domain.Re
 			data[i] = float64(da.MessageCount)
 		}
 
-		sl := sparkline.New(sparkInner, sparkH,
+		sl := sparkline.New(inner, sparkH,
 			sparkline.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(colorOk))),
 		)
 		sl.PushAll(data)
 		sl.Draw()
-		sparkLines = append(sparkLines, sl.View())
+		lines = append(lines, sl.View())
 	} else {
-		sparkLines = append(sparkLines, s.Dim.Render("Not enough data"))
+		lines = append(lines, s.Dim.Render("Not enough data"))
 	}
 
-	sparkContent := strings.Join(sparkLines, "\n")
-	sparkPanel := s.Panel.Width(sparkW - 2).Height(height - 2).Render(sparkContent)
+	content := strings.Join(lines, "\n")
+	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+}
 
-	// --- Right side: recent messages ---
-	recentW := width - sparkW
-	var recentLines []string
-	recentLines = append(recentLines, s.Title.Render("RECENT"))
+// renderTokenBarPanel renders a bar chart of daily token usage by model.
+func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int) string {
+	inner := width - panelOverhead
+	var lines []string
+	lines = append(lines, s.Title.Render("TOKENS BY MODEL"))
 
-	if len(events) == 0 {
-		recentLines = append(recentLines, s.Dim.Render("No recent activity"))
-	} else {
-		maxEvents := height - 4 // border + title + padding
-		if maxEvents < 1 {
-			maxEvents = 1
-		}
-		recentInner := recentW - panelOverhead - 2 // -2 for Width(w-2) on panel
-		for i, ev := range events {
-			if i >= maxEvents {
-				break
-			}
-			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
-			proj := s.Label.Render(truncate(ev.ProjectName, 14))
-			used := lipgloss.Width(timeStr) + 1 + lipgloss.Width(proj) + 1
-			remaining := recentInner - used
-			if remaining < 10 {
-				remaining = 10
-			}
-			display := truncate(ev.Display, remaining)
-			recentLines = append(recentLines, fmt.Sprintf("%s %s %s", timeStr, proj, display))
-		}
+	if usage == nil || len(usage.DailyModelTokens) < 2 {
+		lines = append(lines, s.Dim.Render("Not enough data"))
+		content := strings.Join(lines, "\n")
+		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 	}
 
-	recentContent := strings.Join(recentLines, "\n")
-	recentPanel := s.Panel.Width(recentW - 2).Height(height - 2).Render(recentContent)
+	// Take last 14 days
+	entries := usage.DailyModelTokens
+	maxDays := 14
+	if len(entries) > maxDays {
+		entries = entries[len(entries)-maxDays:]
+	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, sparkPanel, recentPanel)
+	// Collect all model names
+	modelSet := make(map[string]bool)
+	for _, e := range entries {
+		for model := range e.TokensByModel {
+			modelSet[model] = true
+		}
+	}
+	var models []string
+	for m := range modelSet {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+
+	// Date range subtitle
+	first := entries[0].Date[5:]  // MM-DD
+	last := entries[len(entries)-1].Date[5:]
+	lines = append(lines, s.Dim.Render(fmt.Sprintf("%s → %s (%dd)", first, last, len(entries))))
+
+	// Legend
+	var legendParts []string
+	for i, model := range models {
+		color := modelColors[i%len(modelColors)]
+		dot := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render("■")
+		legendParts = append(legendParts, dot+" "+s.Dim.Render(stripClaudePrefix(model)))
+	}
+	lines = append(lines, strings.Join(legendParts, "  "))
+
+	// Find max total tokens per day for peak label
+	var maxTotal int64
+	for _, entry := range entries {
+		var total int64
+		for _, tokens := range entry.TokensByModel {
+			total += tokens
+		}
+		if total > maxTotal {
+			maxTotal = total
+		}
+	}
+	lines = append(lines, s.Dim.Render("peak "+format.FormatCount(maxTotal)))
+
+	barH := height - 2 - len(lines) - 2 // borders + header lines + axis
+	if barH < 3 {
+		barH = 3
+	}
+
+	// Build bar chart
+	barW := (inner - len(entries) + 1) / len(entries)
+	if barW < 1 {
+		barW = 1
+	}
+	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1), barchart.WithBarWidth(barW))
+
+	for _, entry := range entries {
+		var values []barchart.BarValue
+		for i, model := range models {
+			tokens := entry.TokensByModel[model]
+			color := modelColors[i%len(modelColors)]
+			values = append(values, barchart.BarValue{
+				Name:  stripClaudePrefix(model),
+				Value: float64(tokens) / 1000,
+				Style: lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Background(lipgloss.Color(color)),
+			})
+		}
+		label := entry.Date[8:] + "/" + entry.Date[5:7]
+		bc.Push(barchart.BarData{Label: label, Values: values})
+	}
+	bc.Draw()
+	lines = append(lines, bc.View())
+
+	content := strings.Join(lines, "\n")
+	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 }
 
 // renderSessionsPanel renders the "Active Sessions" panel.
@@ -333,12 +448,20 @@ func renderProcessesView(s Styles, sessions []domain.ActiveSession, width, heigh
 	lines = append(lines, s.StatusOk.Render(fmt.Sprintf("● %d active %s", count, countLabel)))
 	lines = append(lines, "")
 
-	// Column widths for wide layout
-	colProject := 24
-	colPID := 10
-	colCPU := 10
-	colMem := 10
-	colUptime := 12
+	// Column widths adapt to panel width
+	innerWidth := width - panelOverhead
+	colProject := 14
+	colPID := 8
+	colCPU := 8
+	colMem := 8
+	colUptime := 10
+	if innerWidth > 70 {
+		colProject = 24
+		colPID = 10
+		colCPU = 10
+		colMem = 10
+		colUptime = 12
+	}
 
 	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s",
 		colProject, "PROJECT",

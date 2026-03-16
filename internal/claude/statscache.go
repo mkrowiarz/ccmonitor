@@ -108,6 +108,17 @@ func parseStatsCache(path string) (*domain.UsageSummary, []string, error) {
 		return summary.DailyActivity[i].Date < summary.DailyActivity[j].Date
 	})
 
+	// Daily model tokens history (sorted by date ascending)
+	for _, dt := range sc.DailyModelTokens {
+		summary.DailyModelTokens = append(summary.DailyModelTokens, domain.DailyModelTokensEntry{
+			Date:          dt.Date,
+			TokensByModel: dt.TokensByModel,
+		})
+	}
+	sort.Slice(summary.DailyModelTokens, func(i, j int) bool {
+		return summary.DailyModelTokens[i].Date < summary.DailyModelTokens[j].Date
+	})
+
 	// Lifetime counts
 	ltMsgs := sc.TotalMessages
 	ltSess := sc.TotalSessions

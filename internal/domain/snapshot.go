@@ -60,8 +60,9 @@ type UsageSummary struct {
 	LifetimeMessages *int64
 	LifetimeSessions *int64
 	LifetimeTokens   []ModelTokens
-	DailyActivity    []DailyActivityEntry
-	SourceDate       string // lastComputedDate from cache
+	DailyActivity       []DailyActivityEntry
+	DailyModelTokens    []DailyModelTokensEntry
+	SourceDate          string // lastComputedDate from cache
 }
 
 // DailyActivityEntry holds per-day message/session counts.
@@ -69,6 +70,12 @@ type DailyActivityEntry struct {
 	Date         string
 	MessageCount int64
 	SessionCount int64
+}
+
+// DailyModelTokensEntry holds per-day token counts broken down by model.
+type DailyModelTokensEntry struct {
+	Date          string
+	TokensByModel map[string]int64
 }
 
 // RateWindow holds utilization and reset time for a single rate limit window.
