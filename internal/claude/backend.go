@@ -12,7 +12,8 @@ import (
 
 // ClaudeBackend implements backend.Backend for local Claude Code monitoring.
 type ClaudeBackend struct {
-	claudeDir string
+	claudeDir   string
+	usageClient *usageClient
 }
 
 // Ensure ClaudeBackend implements backend.Backend.
@@ -22,14 +23,16 @@ var _ backend.Backend = (*ClaudeBackend)(nil)
 func New() *ClaudeBackend {
 	home, _ := os.UserHomeDir()
 	return &ClaudeBackend{
-		claudeDir: filepath.Join(home, ".claude"),
+		claudeDir:   filepath.Join(home, ".claude"),
+		usageClient: newUsageClient(),
 	}
 }
 
 // NewWithDir creates a ClaudeBackend with a custom directory (for testing).
 func NewWithDir(dir string) *ClaudeBackend {
 	return &ClaudeBackend{
-		claudeDir: dir,
+		claudeDir:   dir,
+		usageClient: newUsageClient(),
 	}
 }
 
@@ -94,6 +97,15 @@ func (b *ClaudeBackend) Collect(ctx context.Context, opts backend.CollectOpts) (
 		} else {
 			snap.RecentEvents = events
 		}
+	}
+
+	// 4. Fetch rate limits from usage API
+	rateLimits, usageWarnings, usageErr := b.usageClient.Get(ctx)
+	snap.Warnings = append(snap.Warnings, usageWarnings...)
+	if usageErr != nil {
+		snap.Warnings = append(snap.Warnings, "rate limits: "+usageErr.Error())
+	} else if rateLimits != nil {
+		snap.RateLimits = *rateLimits
 	}
 
 	// Determine overall status

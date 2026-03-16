@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/lipgloss"
@@ -181,6 +183,93 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 
 	content := strings.Join(lines, "\n")
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+}
+
+// renderRateLimitsPanel renders the rate limit windows panel.
+func renderRateLimitsPanel(s Styles, limits domain.RateLimits, width, height int) string {
+	inner := width - panelOverhead
+	var lines []string
+
+	lines = append(lines, s.Title.Render("RATE LIMITS"))
+
+	if limits.FiveHour == nil && limits.SevenDay == nil {
+		lines = append(lines, s.Dim.Render("No rate limit data"))
+		content := strings.Join(lines, "\n")
+		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+	}
+
+	now := time.Now()
+
+	if w := limits.FiveHour; w != nil {
+		lines = append(lines, "")
+		lines = append(lines, s.Label.Render("5-HOUR WINDOW"))
+		lines = append(lines, renderWindowDetail(s, w, now, 5*time.Hour, inner))
+	}
+
+	if w := limits.SevenDay; w != nil {
+		lines = append(lines, "")
+		lines = append(lines, s.Label.Render("7-DAY WINDOW"))
+		lines = append(lines, renderWindowDetail(s, w, now, 7*24*time.Hour, inner))
+	}
+
+	content := strings.Join(lines, "\n")
+	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+}
+
+// renderWindowDetail renders utilization, time remaining, and burn-rate for a window.
+func renderWindowDetail(s Styles, w *domain.RateWindow, now time.Time, windowDur time.Duration, inner int) string {
+	var lines []string
+
+	// Utilization with color
+	util := w.Utilization
+	utilStyle := s.StatusOk
+	if util >= 80 {
+		utilStyle = s.StatusErr
+	} else if util >= 50 {
+		utilStyle = s.StatusWarn
+	}
+
+	// Progress bar
+	barWidth := inner - 8 // space for "100.0% "
+	if barWidth < 5 {
+		barWidth = 5
+	}
+	filled := int(math.Round(util / 100 * float64(barWidth)))
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := utilStyle.Render(strings.Repeat("█", filled)) + s.Dim.Render(strings.Repeat("░", barWidth-filled))
+	lines = append(lines, fmt.Sprintf("%s %s", utilStyle.Render(fmt.Sprintf("%5.1f%%", util)), bar))
+
+	// Time remaining
+	remaining := time.Until(w.ResetsAt)
+	if remaining < 0 {
+		remaining = 0
+	}
+	lines = append(lines, formatKV(s, "Resets in", format.FormatUptime(remaining), inner))
+
+	// Burn rate indicator
+	elapsed := windowDur - remaining
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	elapsedPct := 0.0
+	if windowDur > 0 {
+		elapsedPct = float64(elapsed) / float64(windowDur) * 100
+	}
+	diff := util - elapsedPct
+	burnLabel := "●"
+	burnStyle := s.StatusOk
+	if diff > 15 {
+		burnStyle = s.StatusErr
+		burnLabel = "● HIGH"
+	} else if diff > 5 {
+		burnStyle = s.StatusWarn
+		burnLabel = "● ELEVATED"
+	}
+	lines = append(lines, formatKV(s, "Burn rate", burnStyle.Render(burnLabel), inner))
+
+	return strings.Join(lines, "\n")
 }
 
 // --- helpers ---

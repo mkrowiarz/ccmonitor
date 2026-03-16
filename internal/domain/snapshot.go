@@ -31,6 +31,7 @@ type BackendSnapshot struct {
 	CollectedAt    time.Time
 	ActiveSessions []ActiveSession
 	Usage          UsageSummary
+	RateLimits     RateLimits
 	RecentEvents   []RecentEvent
 	Warnings       []string
 }
@@ -67,6 +68,18 @@ type DailyActivityEntry struct {
 	Date         string
 	MessageCount int64
 	SessionCount int64
+}
+
+// RateWindow holds utilization and reset time for a single rate limit window.
+type RateWindow struct {
+	Utilization float64
+	ResetsAt    time.Time
+}
+
+// RateLimits holds the current rate limit windows from the usage API.
+type RateLimits struct {
+	FiveHour *RateWindow
+	SevenDay *RateWindow
 }
 
 // RecentEvent represents a single activity entry from history.

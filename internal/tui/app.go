@@ -112,10 +112,12 @@ func (m Model) View() string {
 	var usage *domain.UsageSummary
 	var sessions []domain.ActiveSession
 	var events []domain.RecentEvent
+	var rateLimits domain.RateLimits
 	if m.snapshot != nil {
 		usage = &m.snapshot.Usage
 		sessions = m.snapshot.ActiveSessions
 		events = m.snapshot.RecentEvents
+		rateLimits = m.snapshot.RateLimits
 	}
 
 	var body string
@@ -123,25 +125,26 @@ func (m Model) View() string {
 	case tabActivity:
 		body = renderActivityView(m.styles, usage, events, m.width, panelHeight)
 	default:
-		body = m.renderDashboard(usage, sessions, events, panelHeight)
+		body = m.renderDashboard(usage, sessions, rateLimits, panelHeight)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
 }
 
 // renderDashboard renders the horizontal panel layout.
-func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, _ []domain.RecentEvent, panelHeight int) string {
-	leftW := m.width / 4
-	if leftW < 24 {
-		leftW = 24
+func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits domain.RateLimits, panelHeight int) string {
+	colW := m.width / 4
+	if colW < 24 {
+		colW = 24
 	}
-	sessW := m.width - leftW*2
+	sessW := m.width - colW*3
 
-	todayPanel := renderTodayPanel(m.styles, usage, leftW, panelHeight)
-	lifetimePanel := renderLifetimePanel(m.styles, usage, leftW, panelHeight)
+	todayPanel := renderTodayPanel(m.styles, usage, colW, panelHeight)
+	lifetimePanel := renderLifetimePanel(m.styles, usage, colW, panelHeight)
+	rateLimitsPanel := renderRateLimitsPanel(m.styles, rateLimits, colW, panelHeight)
 	sessionsPanel := renderSessionsPanel(m.styles, sessions, sessW, panelHeight)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, sessionsPanel)
+	return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel, sessionsPanel)
 }
 
 // collectCmd creates a command that collects a snapshot from the backend.
