@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/michal/ccmonitor/internal/domain"
-	"github.com/michal/ccmonitor/internal/format"
 )
 
 const (
@@ -46,16 +45,24 @@ type diskWindow struct {
 	ResetsAt    time.Time `json:"resets_at"`
 }
 
+// usageResult holds the result of a Get call including retry metadata.
+type usageResult struct {
+	Limits     *domain.RateLimits
+	RetryAfter time.Time
+	Warnings   []string
+	Err        error
+}
+
 // usageClient fetches rate limit data with in-memory caching.
 type usageClient struct {
-	mu          sync.Mutex
-	cached      *domain.RateLimits
-	fetchedAt   time.Time
-	lastErr     error
-	retryAfter  time.Time
-	ttl         time.Duration
-	cachePath   string
-	tokenFn     func() (string, error)
+	mu         sync.Mutex
+	cached     *domain.RateLimits
+	fetchedAt  time.Time
+	lastErr    error
+	retryAfter time.Time
+	ttl        time.Duration
+	cachePath  string
+	tokenFn    func() (string, error)
 }
 
 func newUsageClient() *usageClient {
@@ -78,15 +85,19 @@ func (u *usageClient) loadDiskCache() {
 	if err := json.Unmarshal(data, &dc); err != nil {
 		return
 	}
-	rl := &domain.RateLimits{FetchedAt: dc.FetchedAt}
-	if dc.FiveHour != nil {
-		rl.FiveHour = &domain.RateWindow{Utilization: dc.FiveHour.Utilization, ResetsAt: dc.FiveHour.ResetsAt}
+	// Restore cached window data if present
+	if dc.FiveHour != nil || dc.SevenDay != nil {
+		rl := &domain.RateLimits{FetchedAt: dc.FetchedAt}
+		if dc.FiveHour != nil {
+			rl.FiveHour = &domain.RateWindow{Utilization: dc.FiveHour.Utilization, ResetsAt: dc.FiveHour.ResetsAt}
+		}
+		if dc.SevenDay != nil {
+			rl.SevenDay = &domain.RateWindow{Utilization: dc.SevenDay.Utilization, ResetsAt: dc.SevenDay.ResetsAt}
+		}
+		u.cached = rl
+		u.fetchedAt = dc.FetchedAt
 	}
-	if dc.SevenDay != nil {
-		rl.SevenDay = &domain.RateWindow{Utilization: dc.SevenDay.Utilization, ResetsAt: dc.SevenDay.ResetsAt}
-	}
-	u.cached = rl
-	u.fetchedAt = dc.FetchedAt
+	// Restore retry-after if still in the future
 	if !dc.RetryAfter.IsZero() && time.Now().Before(dc.RetryAfter) {
 		u.lastErr = fmt.Errorf("%s", dc.LastError)
 		u.retryAfter = dc.RetryAfter
@@ -101,6 +112,7 @@ func (u *usageClient) saveDiskCache(rl *domain.RateLimits) {
 	if rl.SevenDay != nil {
 		dc.SevenDay = &diskWindow{Utilization: rl.SevenDay.Utilization, ResetsAt: rl.SevenDay.ResetsAt}
 	}
+	// Clear error fields on success
 	data, err := json.Marshal(dc)
 	if err != nil {
 		return
@@ -109,8 +121,8 @@ func (u *usageClient) saveDiskCache(rl *domain.RateLimits) {
 }
 
 func (u *usageClient) saveRetryState(errMsg string, retryAfter time.Time) {
-	// Load existing cache to preserve data, just update retry fields
 	dc := diskCache{RetryAfter: retryAfter, LastError: errMsg}
+	// Preserve existing window data if any
 	if existing, err := os.ReadFile(u.cachePath); err == nil {
 		_ = json.Unmarshal(existing, &dc)
 		dc.RetryAfter = retryAfter
@@ -124,102 +136,78 @@ func (u *usageClient) saveRetryState(errMsg string, retryAfter time.Time) {
 }
 
 // Get returns cached rate limits if fresh, otherwise fetches from API.
-func (u *usageClient) Get(ctx context.Context) (*domain.RateLimits, []string, error) {
+func (u *usageClient) Get(ctx context.Context) usageResult {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	if u.cached != nil && time.Since(u.fetchedAt) < u.ttl {
-		return u.cached, nil, nil
-	}
-
-	// Don't retry if we're within a retry-after window
-	if u.lastErr != nil && time.Now().Before(u.retryAfter) {
+	// If in cooldown, don't call the API at all
+	if !u.retryAfter.IsZero() && time.Now().Before(u.retryAfter) {
 		if u.cached != nil {
-			return u.cached, nil, nil
+			return usageResult{Limits: u.cached}
 		}
-		return nil, nil, u.lastErr
+		return usageResult{Err: u.lastErr, RetryAfter: u.retryAfter}
 	}
 
-	result, retryAfter, err := u.fetch(ctx)
+	// Return cached data if still fresh
+	if u.cached != nil && time.Since(u.fetchedAt) < u.ttl {
+		return usageResult{Limits: u.cached}
+	}
+
+	result, err := u.fetch(ctx)
 	if err != nil {
 		u.lastErr = err
-		if retryAfter.IsZero() {
-			u.retryAfter = time.Now().Add(u.ttl)
-		} else {
-			u.retryAfter = retryAfter
-		}
+		u.retryAfter = time.Now().Add(u.ttl + time.Second)
 		u.saveRetryState(err.Error(), u.retryAfter)
-		// Graceful degradation: return stale cache if available
 		if u.cached != nil {
-			return u.cached, []string{"rate limits stale: " + err.Error()}, nil
+			return usageResult{Limits: u.cached}
 		}
-		return nil, nil, err
+		return usageResult{Err: err, RetryAfter: u.retryAfter}
 	}
+
+	// Success — clear all error state
 	u.lastErr = nil
+	u.retryAfter = time.Time{}
 
 	now := time.Now()
 	result.FetchedAt = now
 	u.cached = result
 	u.fetchedAt = now
 	u.saveDiskCache(result)
-	return result, nil, nil
+	return usageResult{Limits: result}
 }
 
-func (u *usageClient) fetch(ctx context.Context) (*domain.RateLimits, time.Time, error) {
-	var noRetry time.Time
-
+func (u *usageClient) fetch(ctx context.Context) (*domain.RateLimits, error) {
 	token, err := u.tokenFn()
 	if err != nil {
-		return nil, noRetry, fmt.Errorf("oauth token: %w", err)
+		return nil, fmt.Errorf("oauth token: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, usageEndpoint, nil)
 	if err != nil {
-		return nil, noRetry, err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("anthropic-beta", usageBetaTag)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, noRetry, fmt.Errorf("usage API request: %w", err)
+		return nil, fmt.Errorf("usage API: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("API cooldown")
+	}
 	if resp.StatusCode != http.StatusOK {
-		retryAt := parseRetryAfter(resp.Header.Get("retry-after"))
-		if resp.StatusCode == http.StatusTooManyRequests {
-			wait := time.Until(retryAt)
-			if wait <= 0 {
-				wait = u.ttl
-			}
-			return nil, retryAt, fmt.Errorf("API cooldown, %s left", format.FormatUptime(wait))
-		}
-		return nil, retryAt, fmt.Errorf("usage API %d", resp.StatusCode)
+		return nil, fmt.Errorf("usage API %d", resp.StatusCode)
 	}
 
 	var data usageResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, noRetry, fmt.Errorf("usage API decode: %w", err)
+		return nil, fmt.Errorf("usage API decode: %w", err)
 	}
 
-	rl, err := parseUsageResponse(&data)
-	return rl, noRetry, err
-}
-
-// parseRetryAfter parses the retry-after header (seconds) into an absolute time.
-func parseRetryAfter(header string) time.Time {
-	if header == "" {
-		return time.Time{}
-	}
-	if secs, err := time.ParseDuration(header + "s"); err == nil {
-		return time.Now().Add(secs)
-	}
-	// Try as HTTP-date
-	if t, err := time.Parse(time.RFC1123, header); err == nil {
-		return t
-	}
-	return time.Time{}
+	return parseUsageResponse(&data)
 }
 
 func parseUsageResponse(data *usageResponse) (*domain.RateLimits, error) {

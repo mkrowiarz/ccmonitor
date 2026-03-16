@@ -78,10 +78,11 @@ type RateWindow struct {
 
 // RateLimits holds the current rate limit windows from the usage API.
 type RateLimits struct {
-	FiveHour  *RateWindow
-	SevenDay  *RateWindow
-	FetchedAt time.Time
-	Error     string
+	FiveHour   *RateWindow
+	SevenDay   *RateWindow
+	FetchedAt  time.Time
+	Error      string
+	RetryAfter time.Time
 }
 
 // RecentEvent represents a single activity entry from history.

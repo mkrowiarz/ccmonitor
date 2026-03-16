@@ -225,10 +225,15 @@ func renderRateLimitsPanel(s Styles, limits domain.RateLimits, width, height int
 	lines = append(lines, title)
 
 	if limits.FiveHour == nil && limits.SevenDay == nil {
-		if limits.Error != "" {
+		if !limits.RetryAfter.IsZero() && time.Now().Before(limits.RetryAfter) {
+			wait := time.Until(limits.RetryAfter)
+			lines = append(lines, s.StatusWarn.Render("API cooldown"))
+			lines = append(lines, "")
+			lines = append(lines, formatKV(s, "Available in", format.FormatUptime(wait), inner))
+		} else if limits.Error != "" {
 			lines = append(lines, s.StatusWarn.Render(truncate(limits.Error, inner)))
 		} else {
-			lines = append(lines, s.Dim.Render("No rate limit data"))
+			lines = append(lines, s.Dim.Render("Waiting for data..."))
 		}
 		content := strings.Join(lines, "\n")
 		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
