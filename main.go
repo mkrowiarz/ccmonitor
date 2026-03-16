@@ -12,10 +12,18 @@ import (
 	"github.com/michal/ccmonitor/internal/tui"
 )
 
+var version = "dev"
+
 func main() {
 	interval := flag.Int("interval", 5, "refresh interval in seconds")
 	backendName := flag.String("backend", "claude", "backend to use")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("ccmonitor", version)
+		return
+	}
 
 	// Register backends
 	backend.Register(claude.New())

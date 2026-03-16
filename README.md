@@ -32,16 +32,30 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Glo
 
 ## Install
 
-```
-go install github.com/michal/ccmonitor@latest
-```
-
-Or build from source:
+### From source
 
 ```
 git clone https://github.com/mkrowiarz/ccmonitor.git
 cd ccmonitor
-make build
+make install        # installs to /usr/local/bin
+```
+
+Or to a custom location:
+
+```
+make install PREFIX=~/.local
+```
+
+### Go install
+
+```
+go install github.com/michal/ccmonitor@latest
+```
+
+### Uninstall
+
+```
+make uninstall
 ```
 
 ## Usage
