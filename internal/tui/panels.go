@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/NimbleMarkets/ntcharts/barchart"
-	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/michal/ccmonitor/internal/domain"
 	"github.com/michal/ccmonitor/internal/format"
@@ -128,42 +127,67 @@ func renderAnalyticsTab(s Styles, usage *domain.UsageSummary, width, height int)
 	halfW := width / 2
 	rightW := width - halfW
 
-	sparkPanel := renderSparklinePanel(s, usage, halfW, height)
+	sparkPanel := renderMessagesBarPanel(s, usage, halfW, height)
 	barPanel := renderTokenBarPanel(s, usage, rightW, height)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, sparkPanel, barPanel)
 }
 
-// renderSparklinePanel renders a full-height sparkline of messages per day.
-func renderSparklinePanel(s Styles, usage *domain.UsageSummary, width, height int) string {
+// renderMessagesBarPanel renders a bar chart of messages per day.
+func renderMessagesBarPanel(s Styles, usage *domain.UsageSummary, width, height int) string {
 	inner := width - panelOverhead
 	var lines []string
 	lines = append(lines, s.Title.Render("MESSAGES PER DAY"))
 
-	if usage != nil && len(usage.DailyActivity) >= 2 {
-		first := usage.DailyActivity[0].Date
-		last := usage.DailyActivity[len(usage.DailyActivity)-1].Date
-		lines = append(lines, s.Dim.Render(first+" → "+last))
-
-		sparkH := height - 2 - len(lines) - 1
-		if sparkH < 1 {
-			sparkH = 1
-		}
-
-		data := make([]float64, len(usage.DailyActivity))
-		for i, da := range usage.DailyActivity {
-			data[i] = float64(da.MessageCount)
-		}
-
-		sl := sparkline.New(inner, sparkH,
-			sparkline.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(colorOk))),
-		)
-		sl.PushAll(data)
-		sl.Draw()
-		lines = append(lines, sl.View())
-	} else {
+	if usage == nil || len(usage.DailyActivity) < 2 {
 		lines = append(lines, s.Dim.Render("Not enough data"))
+		content := strings.Join(lines, "\n")
+		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 	}
+
+	entries := usage.DailyActivity
+	maxDays := inner / 6 // fit 5-char labels + 1 gap
+	if maxDays > 14 {
+		maxDays = 14
+	}
+	if maxDays < 2 {
+		maxDays = 2
+	}
+	if len(entries) > maxDays {
+		entries = entries[len(entries)-maxDays:]
+	}
+
+	first := entries[0].Date[5:]
+	last := entries[len(entries)-1].Date[5:]
+	lines = append(lines, s.Dim.Render(fmt.Sprintf("%s → %s (%dd)", first, last, len(entries))))
+
+	// Peak
+	var maxMsgs int64
+	for _, e := range entries {
+		if e.MessageCount > maxMsgs {
+			maxMsgs = e.MessageCount
+		}
+	}
+	lines = append(lines, s.Dim.Render("peak "+format.FormatCount(maxMsgs)))
+
+	barH := height - 2 - len(lines)
+	if barH < 3 {
+		barH = 3
+	}
+	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorOk)).Background(lipgloss.Color(colorOk))
+	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1))
+
+	for _, entry := range entries {
+		label := entry.Date[8:] + "/" + entry.Date[5:7]
+		bc.Push(barchart.BarData{
+			Label:  label,
+			Values: []barchart.BarValue{{Value: float64(entry.MessageCount), Style: barStyle}},
+		})
+	}
+	bc.Draw()
+	lines = append(lines, bc.View())
 
 	content := strings.Join(lines, "\n")
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
@@ -181,9 +205,14 @@ func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int
 		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 	}
 
-	// Take last 14 days
 	entries := usage.DailyModelTokens
-	maxDays := 14
+	maxDays := inner / 6
+	if maxDays > 14 {
+		maxDays = 14
+	}
+	if maxDays < 2 {
+		maxDays = 2
+	}
 	if len(entries) > maxDays {
 		entries = entries[len(entries)-maxDays:]
 	}
@@ -202,7 +231,7 @@ func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int
 	sort.Strings(models)
 
 	// Date range subtitle
-	first := entries[0].Date[5:]  // MM-DD
+	first := entries[0].Date[5:]
 	last := entries[len(entries)-1].Date[5:]
 	lines = append(lines, s.Dim.Render(fmt.Sprintf("%s → %s (%dd)", first, last, len(entries))))
 
@@ -228,19 +257,13 @@ func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int
 	}
 	lines = append(lines, s.Dim.Render("peak "+format.FormatCount(maxTotal)))
 
-	barH := height - 2 - len(lines) - 2 // borders + header lines + axis
+	barH := height - 2 - len(lines)
 	if barH < 3 {
 		barH = 3
 	}
-
-	// Build bar chart
-	barW := (inner - len(entries) + 1) / len(entries)
-	if barW < 1 {
-		barW = 1
-	}
 	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
-	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1), barchart.WithBarWidth(barW))
+	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1))
 
 	for _, entry := range entries {
 		var values []barchart.BarValue

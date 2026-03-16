@@ -15,7 +15,7 @@ func renderHeader(s Styles, snapshot *domain.BackendSnapshot, interval int, acti
 	var tabs []string
 	for i, name := range tabNames {
 		// Hide Processes tab label when narrow
-		if i == tabAnalytics && width < 140 {
+		if i == tabAnalytics && width < 90 {
 			continue
 		}
 		label := fmt.Sprintf(" %d:%s ", i+1, name)
