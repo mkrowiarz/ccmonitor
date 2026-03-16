@@ -158,15 +158,7 @@ func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.Act
 		if topHeight > panelHeight-6 {
 			topHeight = panelHeight - 6
 		}
-		// Bottom panel: count of sessions * 1 line each + header(3) + border(2) + overflow(1)
-		sessCount := len(sessions)
-		if sessCount > 3 {
-			sessCount = 3
-		}
-		bottomHeight := sessCount + 6
-		if bottomHeight < 6 {
-			bottomHeight = 6
-		}
+		bottomHeight := panelHeight - topHeight
 
 		todayPanel := renderTodayPanel(m.styles, usage, colW, topHeight)
 		lifetimePanel := renderLifetimePanel(m.styles, usage, colW, topHeight)

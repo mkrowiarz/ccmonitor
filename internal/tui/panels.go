@@ -169,9 +169,9 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 		header := formatSessionRow(s.TableHeader, "project", "pid", "cpu", "mem", "uptime", innerWidth)
 		lines = append(lines, header)
 
-		// Each session takes 2 lines (data + uptime), so calculate max visible
+		// Each session takes 1 line
 		availLines := height - panelOverhead - 3 // title + count + header
-		maxSessions := availLines / 2
+		maxSessions := availLines - 1            // reserve 1 for potential "+N more"
 		if maxSessions < 1 {
 			maxSessions = 1
 		}
