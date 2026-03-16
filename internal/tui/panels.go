@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/michal/ccmonitor/internal/domain"
 	"github.com/michal/ccmonitor/internal/format"
@@ -74,6 +75,79 @@ func renderLifetimePanel(s Styles, usage *domain.UsageSummary, width, height int
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 }
 
+// renderActivityView renders the Activity tab: sparkline + recent messages.
+func renderActivityView(s Styles, usage *domain.UsageSummary, events []domain.RecentEvent, width, height int) string {
+	// --- Left side: sparkline chart ---
+	sparkW := width / 3
+	if sparkW < 24 {
+		sparkW = 24
+	}
+	sparkInner := sparkW - panelOverhead
+	var sparkLines []string
+	sparkLines = append(sparkLines, s.Title.Render("MESSAGES PER DAY"))
+
+	if usage != nil && len(usage.DailyActivity) >= 2 {
+		first := usage.DailyActivity[0].Date
+		last := usage.DailyActivity[len(usage.DailyActivity)-1].Date
+		sparkLines = append(sparkLines, s.Dim.Render(first+" → "+last))
+
+		sparkH := height - 2 - len(sparkLines) - 1
+		if sparkH < 1 {
+			sparkH = 1
+		}
+
+		data := make([]float64, len(usage.DailyActivity))
+		for i, da := range usage.DailyActivity {
+			data[i] = float64(da.MessageCount)
+		}
+
+		sl := sparkline.New(sparkInner, sparkH,
+			sparkline.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(colorOk))),
+		)
+		sl.PushAll(data)
+		sl.Draw()
+		sparkLines = append(sparkLines, sl.View())
+	} else {
+		sparkLines = append(sparkLines, s.Dim.Render("Not enough data"))
+	}
+
+	sparkContent := strings.Join(sparkLines, "\n")
+	sparkPanel := s.Panel.Width(sparkW - 2).Height(height - 2).Render(sparkContent)
+
+	// --- Right side: recent messages ---
+	recentW := width - sparkW
+	var recentLines []string
+	recentLines = append(recentLines, s.Title.Render("RECENT"))
+
+	if len(events) == 0 {
+		recentLines = append(recentLines, s.Dim.Render("No recent activity"))
+	} else {
+		maxEvents := height - 4 // border + title + padding
+		if maxEvents < 1 {
+			maxEvents = 1
+		}
+		recentInner := recentW - panelOverhead
+		for i, ev := range events {
+			if i >= maxEvents {
+				break
+			}
+			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
+			proj := s.Label.Render(truncate(ev.ProjectName, 14))
+			remaining := recentInner - 6 - 15 // time width + proj width approx
+			if remaining < 10 {
+				remaining = 10
+			}
+			display := truncate(ev.Display, remaining)
+			recentLines = append(recentLines, fmt.Sprintf("%s %s %s", timeStr, proj, display))
+		}
+	}
+
+	recentContent := strings.Join(recentLines, "\n")
+	recentPanel := s.Panel.Width(recentW - 2).Height(height - 2).Render(recentContent)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, sparkPanel, recentPanel)
+}
+
 // renderSessionsPanel renders the "Active Sessions" panel.
 func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, height int) string {
 	var lines []string
@@ -102,34 +176,6 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 			mem := fmt.Sprintf("%.1f%%", sess.MemPercent)
 			uptime := format.FormatUptime(sess.Uptime)
 			lines = append(lines, formatSessionRow(lipgloss.NewStyle().Foreground(lipgloss.Color(colorValue)), proj, pid, cpu, mem, uptime, innerWidth))
-		}
-	}
-
-	content := strings.Join(lines, "\n")
-	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
-}
-
-// renderActivityPanel renders the "Recent Activity" panel.
-func renderActivityPanel(s Styles, events []domain.RecentEvent, width, height int) string {
-	var lines []string
-
-	lines = append(lines, s.Title.Render("RECENT ACTIVITY"))
-
-	if len(events) == 0 {
-		lines = append(lines, s.Dim.Render("No recent activity"))
-	} else {
-		maxEvents := height - 3 // border + title
-		if maxEvents < 1 {
-			maxEvents = 1
-		}
-		for i, ev := range events {
-			if i >= maxEvents {
-				break
-			}
-			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
-			proj := s.Label.Render(truncate(ev.ProjectName, 14))
-			display := truncate(ev.Display, width-28)
-			lines = append(lines, fmt.Sprintf("%s %s %s", timeStr, proj, display))
 		}
 	}
 

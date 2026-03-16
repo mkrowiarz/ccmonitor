@@ -58,7 +58,15 @@ type UsageSummary struct {
 	LifetimeMessages *int64
 	LifetimeSessions *int64
 	LifetimeTokens   []ModelTokens
+	DailyActivity    []DailyActivityEntry
 	SourceDate       string // lastComputedDate from cache
+}
+
+// DailyActivityEntry holds per-day message/session counts.
+type DailyActivityEntry struct {
+	Date         string
+	MessageCount int64
+	SessionCount int64
 }
 
 // RecentEvent represents a single activity entry from history.

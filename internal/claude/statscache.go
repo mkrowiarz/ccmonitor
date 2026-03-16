@@ -96,6 +96,18 @@ func parseStatsCache(path string) (*domain.UsageSummary, []string, error) {
 		warnings = append(warnings, "no daily model tokens entry for "+todayDate)
 	}
 
+	// Daily activity history (sorted by date ascending)
+	for _, da := range sc.DailyActivity {
+		summary.DailyActivity = append(summary.DailyActivity, domain.DailyActivityEntry{
+			Date:         da.Date,
+			MessageCount: da.MessageCount,
+			SessionCount: da.SessionCount,
+		})
+	}
+	sort.Slice(summary.DailyActivity, func(i, j int) bool {
+		return summary.DailyActivity[i].Date < summary.DailyActivity[j].Date
+	})
+
 	// Lifetime counts
 	ltMsgs := sc.TotalMessages
 	ltSess := sc.TotalSessions

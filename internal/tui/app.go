@@ -10,12 +10,19 @@ import (
 	"github.com/michal/ccmonitor/internal/domain"
 )
 
+// Tab indices for the TUI views.
+const (
+	tabDashboard = iota
+	tabActivity
+	tabCount // sentinel for wrapping
+)
+
 // Model is the root Bubble Tea model for ccmonitor.
 type Model struct {
-	backend      backend.Backend
-	snapshot     *domain.BackendSnapshot
-	interval     time.Duration
-	showActivity bool
+	backend   backend.Backend
+	snapshot  *domain.BackendSnapshot
+	interval  time.Duration
+	activeTab int
 	width        int
 	height       int
 	styles       Styles
@@ -24,18 +31,16 @@ type Model struct {
 
 // Options configures the TUI model.
 type Options struct {
-	Backend      backend.Backend
-	Interval     time.Duration
-	ShowActivity bool
+	Backend  backend.Backend
+	Interval time.Duration
 }
 
 // NewModel creates a new TUI model with the given options.
 func NewModel(opts Options) Model {
 	return Model{
-		backend:      opts.Backend,
-		interval:     opts.Interval,
-		showActivity: opts.ShowActivity,
-		styles:       NewStyles(),
+		backend:  opts.Backend,
+		interval: opts.Interval,
+		styles:   NewStyles(),
 	}
 }
 
@@ -67,6 +72,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case TabMsg:
+		if msg.Tab == -1 {
+			m.activeTab = (m.activeTab + 1) % tabCount
+		} else {
+			m.activeTab = msg.Tab
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		cmd := handleKeyPress(msg)
 		if cmd != nil {
@@ -86,7 +99,7 @@ func (m Model) View() string {
 	intervalSec := int(m.interval.Seconds())
 
 	// Render header and footer
-	header := renderHeader(m.styles, m.snapshot, intervalSec, m.width)
+	header := renderHeader(m.styles, m.snapshot, intervalSec, m.activeTab, m.width)
 	footer := renderFooter(m.styles, m.width)
 
 	// Available height for panels (subtract header + footer lines)
@@ -105,33 +118,30 @@ func (m Model) View() string {
 		events = m.snapshot.RecentEvents
 	}
 
-	// Horizontal single-row layout: today | lifetime | sessions [| activity]
-	// Left two panels get fixed ~25% each, sessions/activity gets the rest
+	var body string
+	switch m.activeTab {
+	case tabActivity:
+		body = renderActivityView(m.styles, usage, events, m.width, panelHeight)
+	default:
+		body = m.renderDashboard(usage, sessions, events, panelHeight)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+}
+
+// renderDashboard renders the horizontal panel layout.
+func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, _ []domain.RecentEvent, panelHeight int) string {
 	leftW := m.width / 4
 	if leftW < 24 {
 		leftW = 24
 	}
-	remainW := m.width - leftW*2
-	sessW := remainW
-	actW := 0
-	if m.showActivity {
-		sessW = remainW / 2
-		actW = remainW - sessW
-	}
+	sessW := m.width - leftW*2
 
 	todayPanel := renderTodayPanel(m.styles, usage, leftW, panelHeight)
 	lifetimePanel := renderLifetimePanel(m.styles, usage, leftW, panelHeight)
 	sessionsPanel := renderSessionsPanel(m.styles, sessions, sessW, panelHeight)
 
-	panels := []string{todayPanel, lifetimePanel, sessionsPanel}
-	if m.showActivity {
-		activityPanel := renderActivityPanel(m.styles, events, actW, panelHeight)
-		panels = append(panels, activityPanel)
-	}
-
-	grid := lipgloss.JoinHorizontal(lipgloss.Top, panels...)
-
-	return lipgloss.JoinVertical(lipgloss.Left, header, grid, footer)
+	return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, sessionsPanel)
 }
 
 // collectCmd creates a command that collects a snapshot from the backend.
@@ -141,7 +151,7 @@ func (m Model) collectCmd() tea.Cmd {
 		defer cancel()
 
 		opts := backend.CollectOpts{
-			IncludeRecentActivity: m.showActivity,
+			IncludeRecentActivity: true,
 		}
 
 		snapshot, err := m.backend.Collect(ctx, opts)

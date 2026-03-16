@@ -66,6 +66,23 @@ func TestParseStatsCacheValid(t *testing.T) {
 		}
 	}
 
+	// Daily activity
+	if len(summary.DailyActivity) != 2 {
+		t.Fatalf("DailyActivity count = %d, want 2", len(summary.DailyActivity))
+	}
+	if summary.DailyActivity[0].Date != "2026-03-08" {
+		t.Errorf("DailyActivity[0].Date = %q, want %q", summary.DailyActivity[0].Date, "2026-03-08")
+	}
+	if summary.DailyActivity[0].MessageCount != 100 {
+		t.Errorf("DailyActivity[0].MessageCount = %d, want 100", summary.DailyActivity[0].MessageCount)
+	}
+	if summary.DailyActivity[1].Date != "2026-03-09" {
+		t.Errorf("DailyActivity[1].Date = %q, want %q", summary.DailyActivity[1].Date, "2026-03-09")
+	}
+	if summary.DailyActivity[1].MessageCount != 4000 {
+		t.Errorf("DailyActivity[1].MessageCount = %d, want 4000", summary.DailyActivity[1].MessageCount)
+	}
+
 	// Source date
 	if summary.SourceDate != "2026-03-09" {
 		t.Errorf("SourceDate = %q, want %q", summary.SourceDate, "2026-03-09")

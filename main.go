@@ -14,7 +14,6 @@ import (
 
 func main() {
 	interval := flag.Int("interval", 5, "refresh interval in seconds")
-	recentActivity := flag.Bool("recent-activity", false, "show recent activity panel")
 	backendName := flag.String("backend", "claude", "backend to use")
 	flag.Parse()
 
@@ -30,9 +29,8 @@ func main() {
 
 	// Create and run Bubble Tea program
 	model := tui.NewModel(tui.Options{
-		Backend:      b,
-		Interval:     time.Duration(*interval) * time.Second,
-		ShowActivity: *recentActivity,
+		Backend:  b,
+		Interval: time.Duration(*interval) * time.Second,
 	})
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
