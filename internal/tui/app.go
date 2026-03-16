@@ -143,9 +143,9 @@ func (m Model) View() string {
 
 // renderDashboard renders the horizontal panel layout.
 func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits domain.RateLimits, panelHeight int) string {
-	colW := m.width / 4
-	if colW < 24 {
-		colW = 24
+	colW := m.width * 22 / 100
+	if colW < 22 {
+		colW = 22
 	}
 	sessW := m.width - colW*3
 
