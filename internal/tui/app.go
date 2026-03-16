@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,10 +47,7 @@ func NewModel(opts Options) Model {
 
 // Init returns the initial commands for the model.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		m.collectCmd(),
-		m.tickCmd(),
-	)
+	return m.collectCmd()
 }
 
 // Update handles messages and updates the model.
@@ -70,7 +68,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.snapshot = msg.Snapshot
 			m.err = nil
 		}
-		return m, nil
+		return m, m.tickCmd()
 
 	case TabMsg:
 		if msg.Tab == -1 {
@@ -89,10 +87,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+const (
+	minWidth  = 100
+	minHeight = 14
+)
+
 // View renders the full TUI layout.
 func (m Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
+	}
+
+	if m.width < minWidth || m.height < minHeight {
+		return renderTooSmall(m.styles, m.width, m.height)
 	}
 
 	// Determine interval in seconds for header display
@@ -171,4 +178,27 @@ func (m Model) tickCmd() tea.Cmd {
 		time.Sleep(m.interval)
 		return TickMsg{}
 	}
+}
+
+// renderTooSmall renders a btop-style warning when the terminal is too small.
+func renderTooSmall(s Styles, w, h int) string {
+	title := s.Title.Render("Terminal size too small:")
+	current := fmt.Sprintf("Width = %s  Height = %s",
+		s.StatusErr.Render(fmt.Sprintf("%d", w)),
+		s.StatusErr.Render(fmt.Sprintf("%d", h)),
+	)
+	needed := fmt.Sprintf("Width = %s  Height = %s",
+		s.StatusOk.Render(fmt.Sprintf("%d", minWidth)),
+		s.StatusOk.Render(fmt.Sprintf("%d", minHeight)),
+	)
+	msg := lipgloss.JoinVertical(lipgloss.Center,
+		"",
+		title,
+		current,
+		"",
+		s.Label.Render("Needed:"),
+		needed,
+		"",
+	)
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
 }

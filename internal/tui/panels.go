@@ -15,6 +15,9 @@ import (
 // panelOverhead is the horizontal space consumed by border (2) + padding (2).
 const panelOverhead = 4
 
+// maxModels is the maximum number of model rows shown before truncating.
+const maxModels = 3
+
 // renderTodayPanel renders the "Today" usage panel.
 func renderTodayPanel(s Styles, usage *domain.UsageSummary, width, height int) string {
 	inner := width - panelOverhead
@@ -33,14 +36,11 @@ func renderTodayPanel(s Styles, usage *domain.UsageSummary, width, height int) s
 	lines = append(lines, "")
 	lines = append(lines, s.Title.Render("TOKENS TODAY"))
 
-	if usage != nil && len(usage.TodayTokens) > 0 {
-		for _, mt := range usage.TodayTokens {
-			name := stripClaudePrefix(mt.ModelName)
-			lines = append(lines, formatModelKV(s, name, format.FormatCount(mt.TokenCount), inner))
-		}
-	} else {
-		lines = append(lines, s.Dim.Render("No token data"))
+	var todayTokens []domain.ModelTokens
+	if usage != nil {
+		todayTokens = usage.TodayTokens
 	}
+	lines = append(lines, renderModelTokens(s, todayTokens, inner, maxModels)...)
 
 	content := strings.Join(lines, "\n")
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
@@ -64,14 +64,11 @@ func renderLifetimePanel(s Styles, usage *domain.UsageSummary, width, height int
 	lines = append(lines, "")
 	lines = append(lines, s.Title.Render("TOKENS LIFETIME"))
 
-	if usage != nil && len(usage.LifetimeTokens) > 0 {
-		for _, mt := range usage.LifetimeTokens {
-			name := stripClaudePrefix(mt.ModelName)
-			lines = append(lines, formatModelKV(s, name, format.FormatCount(mt.TokenCount), inner))
-		}
-	} else {
-		lines = append(lines, s.Dim.Render("No token data"))
+	var lifetimeTokens []domain.ModelTokens
+	if usage != nil {
+		lifetimeTokens = usage.LifetimeTokens
 	}
+	lines = append(lines, renderModelTokens(s, lifetimeTokens, inner, maxModels)...)
 
 	content := strings.Join(lines, "\n")
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
@@ -171,13 +168,31 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 		header := formatSessionRow(s.TableHeader, "project", "pid", "cpu", "mem", "uptime", innerWidth)
 		lines = append(lines, header)
 
-		for _, sess := range sessions {
+		// Each session takes 2 lines (data + uptime), so calculate max visible
+		availLines := height - panelOverhead - 3 // title + count + header
+		maxSessions := availLines / 2
+		if maxSessions < 1 {
+			maxSessions = 1
+		}
+
+		visible := sessions
+		truncated := 0
+		if len(visible) > maxSessions {
+			truncated = len(visible) - maxSessions
+			visible = visible[:maxSessions]
+		}
+
+		for _, sess := range visible {
 			proj := truncate(sess.ProjectName, 14)
 			pid := fmt.Sprintf("%d", sess.PID)
 			cpu := fmt.Sprintf("%.1f%%", sess.CPUPercent)
 			mem := fmt.Sprintf("%.1f%%", sess.MemPercent)
 			uptime := format.FormatUptime(sess.Uptime)
-			lines = append(lines, formatSessionRow(lipgloss.NewStyle().Foreground(lipgloss.Color(colorValue)), proj, pid, cpu, mem, uptime, innerWidth))
+			lines = append(lines, formatSessionRowColored(s, proj, pid, cpu, mem, uptime, innerWidth))
+		}
+
+		if truncated > 0 {
+			lines = append(lines, s.Dim.Render(fmt.Sprintf("  +%d more", truncated)))
 		}
 	}
 
@@ -198,29 +213,24 @@ func renderRateLimitsPanel(s Styles, limits domain.RateLimits, width, height int
 		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 	}
 
-	now := time.Now()
-
 	if w := limits.FiveHour; w != nil {
 		lines = append(lines, "")
-		lines = append(lines, s.Label.Render("5-HOUR WINDOW"))
-		lines = append(lines, renderWindowDetail(s, w, now, 5*time.Hour, inner))
+		lines = append(lines, renderWindowCompact(s, "5h", w, 5*time.Hour, inner))
 	}
-
 	if w := limits.SevenDay; w != nil {
 		lines = append(lines, "")
-		lines = append(lines, s.Label.Render("7-DAY WINDOW"))
-		lines = append(lines, renderWindowDetail(s, w, now, 7*24*time.Hour, inner))
+		lines = append(lines, renderWindowCompact(s, "7d", w, 7*24*time.Hour, inner))
 	}
 
 	content := strings.Join(lines, "\n")
 	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 }
 
-// renderWindowDetail renders utilization, time remaining, and burn-rate for a window.
-func renderWindowDetail(s Styles, w *domain.RateWindow, now time.Time, windowDur time.Duration, inner int) string {
-	var lines []string
-
-	// Utilization with color
+// renderWindowCompact renders a rate window in 2 lines:
+//
+//	5h  12.0% ████░░░░░░░░░░ ●
+//	    resets 3h1m
+func renderWindowCompact(s Styles, label string, w *domain.RateWindow, windowDur time.Duration, inner int) string {
 	util := w.Utilization
 	utilStyle := s.StatusOk
 	if util >= 80 {
@@ -229,26 +239,11 @@ func renderWindowDetail(s Styles, w *domain.RateWindow, now time.Time, windowDur
 		utilStyle = s.StatusWarn
 	}
 
-	// Progress bar
-	barWidth := inner - 8 // space for "100.0% "
-	if barWidth < 5 {
-		barWidth = 5
-	}
-	filled := int(math.Round(util / 100 * float64(barWidth)))
-	if filled > barWidth {
-		filled = barWidth
-	}
-	bar := utilStyle.Render(strings.Repeat("█", filled)) + s.Dim.Render(strings.Repeat("░", barWidth-filled))
-	lines = append(lines, fmt.Sprintf("%s %s", utilStyle.Render(fmt.Sprintf("%5.1f%%", util)), bar))
-
-	// Time remaining
+	// Burn rate dot
 	remaining := time.Until(w.ResetsAt)
 	if remaining < 0 {
 		remaining = 0
 	}
-	lines = append(lines, formatKV(s, "Resets in", format.FormatUptime(remaining), inner))
-
-	// Burn rate indicator
 	elapsed := windowDur - remaining
 	if elapsed < 0 {
 		elapsed = 0
@@ -258,18 +253,54 @@ func renderWindowDetail(s Styles, w *domain.RateWindow, now time.Time, windowDur
 		elapsedPct = float64(elapsed) / float64(windowDur) * 100
 	}
 	diff := util - elapsedPct
-	burnLabel := "●"
-	burnStyle := s.StatusOk
+	burnDot := s.StatusOk.Render("●")
 	if diff > 15 {
-		burnStyle = s.StatusErr
-		burnLabel = "● HIGH"
+		burnDot = s.StatusErr.Render("●")
 	} else if diff > 5 {
-		burnStyle = s.StatusWarn
-		burnLabel = "● ELEVATED"
+		burnDot = s.StatusWarn.Render("●")
 	}
-	lines = append(lines, formatKV(s, "Burn rate", burnStyle.Render(burnLabel), inner))
 
-	return strings.Join(lines, "\n")
+	// Line 1: "5h  12.0% ████░░░░░░ ●"
+	prefix := fmt.Sprintf("%-3s %5.1f%% ", label, util)
+	prefixW := len(prefix)
+	barWidth := inner - prefixW - 2 // 2 for " ●"
+	if barWidth < 3 {
+		barWidth = 3
+	}
+	filled := int(math.Round(util / 100 * float64(barWidth)))
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := utilStyle.Render(strings.Repeat("█", filled)) + s.Dim.Render(strings.Repeat("░", barWidth-filled))
+	line1 := s.Label.Render(label) + utilStyle.Render(fmt.Sprintf(" %5.1f%% ", util)) + bar + " " + burnDot
+
+	// Line 2: "    resets 3h1m"
+	resetStr := format.FormatUptime(remaining)
+	line2 := s.Dim.Render(fmt.Sprintf("    resets %s", resetStr))
+
+	return line1 + "\n" + line2
+}
+
+// renderModelTokens renders a list of model token rows, capped at max with "+N more".
+func renderModelTokens(s Styles, tokens []domain.ModelTokens, inner, max int) []string {
+	if len(tokens) == 0 {
+		return []string{s.Dim.Render("No token data")}
+	}
+	var lines []string
+	visible := tokens
+	truncated := 0
+	if len(visible) > max {
+		truncated = len(visible) - max
+		visible = visible[:max]
+	}
+	for _, mt := range visible {
+		name := stripClaudePrefix(mt.ModelName)
+		lines = append(lines, formatModelKV(s, name, format.FormatCount(mt.TokenCount), inner))
+	}
+	if truncated > 0 {
+		lines = append(lines, s.Dim.Render(fmt.Sprintf("  +%d more", truncated)))
+	}
+	return lines
 }
 
 // --- helpers ---
@@ -312,6 +343,23 @@ func formatSessionRow(style lipgloss.Style, project, pid, cpu, mem, uptime strin
 		uptime,
 	)
 	return style.Render(row)
+}
+
+// formatSessionRowColored renders a session row with the project name in a distinct color.
+func formatSessionRowColored(s Styles, project, pid, cpu, mem, uptime string, innerWidth int) string {
+	colProject := 14
+	colPID := 8
+	colCPU := 8
+	colMem := 10
+
+	projPart := s.ModelName.Render(fmt.Sprintf("%-*s", colProject, project))
+	rest := fmt.Sprintf(" %-*s %-*s %-*s %s",
+		colPID, pid,
+		colCPU, cpu,
+		colMem, mem,
+		uptime,
+	)
+	return projPart + s.Value.Render(rest)
 }
 
 func formatOptionalCount(v *int64) string {
