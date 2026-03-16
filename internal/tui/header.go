@@ -14,6 +14,10 @@ func renderHeader(s Styles, snapshot *domain.BackendSnapshot, interval int, acti
 	tabNames := []string{"Dashboard", "Activity", "Processes"}
 	var tabs []string
 	for i, name := range tabNames {
+		// Hide Processes tab label when narrow
+		if i == tabProcesses && width < 100 {
+			continue
+		}
 		label := fmt.Sprintf(" %d:%s ", i+1, name)
 		if i == activeTab {
 			tabs = append(tabs, s.Header.Render(label))

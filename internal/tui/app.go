@@ -89,7 +89,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 const (
-	minWidth  = 100
+	minWidth  = 80
 	minHeight = 14
 )
 
@@ -142,7 +142,41 @@ func (m Model) View() string {
 }
 
 // renderDashboard renders the horizontal panel layout.
+// When narrow (<100 cols), sessions panel moves to a second row.
 func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits domain.RateLimits, panelHeight int) string {
+	narrow := m.width < 100
+
+	if narrow {
+		colW := m.width / 3
+		if colW < 22 {
+			colW = 22
+		}
+		// Give remaining pixels to the last column
+		lastColW := m.width - colW*2
+
+		topHeight := 12 // enough for title + 2 KV + blank + title + 3 models + margin
+		if topHeight > panelHeight-6 {
+			topHeight = panelHeight - 6
+		}
+		// Bottom panel: count of sessions * 1 line each + header(3) + border(2) + overflow(1)
+		sessCount := len(sessions)
+		if sessCount > 3 {
+			sessCount = 3
+		}
+		bottomHeight := sessCount + 6
+		if bottomHeight < 6 {
+			bottomHeight = 6
+		}
+
+		todayPanel := renderTodayPanel(m.styles, usage, colW, topHeight)
+		lifetimePanel := renderLifetimePanel(m.styles, usage, colW, topHeight)
+		rateLimitsPanel := renderRateLimitsPanel(m.styles, rateLimits, lastColW, topHeight)
+		topRow := lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel)
+
+		sessionsPanel := renderSessionsPanel(m.styles, sessions, m.width, bottomHeight)
+		return lipgloss.JoinVertical(lipgloss.Left, topRow, sessionsPanel)
+	}
+
 	colW := m.width * 22 / 100
 	if colW < 22 {
 		colW = 22
