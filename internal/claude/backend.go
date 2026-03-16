@@ -99,11 +99,10 @@ func (b *ClaudeBackend) Collect(ctx context.Context, opts backend.CollectOpts) (
 		}
 	}
 
-	// 4. Fetch rate limits from usage API
-	rateLimits, usageWarnings, usageErr := b.usageClient.Get(ctx)
-	snap.Warnings = append(snap.Warnings, usageWarnings...)
+	// 4. Fetch rate limits from usage API (best-effort, doesn't affect status)
+	rateLimits, _, usageErr := b.usageClient.Get(ctx)
 	if usageErr != nil {
-		snap.Warnings = append(snap.Warnings, "rate limits: "+usageErr.Error())
+		snap.RateLimits.Error = usageErr.Error()
 	} else if rateLimits != nil {
 		snap.RateLimits = *rateLimits
 	}

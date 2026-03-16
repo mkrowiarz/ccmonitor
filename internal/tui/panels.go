@@ -206,10 +206,30 @@ func renderRateLimitsPanel(s Styles, limits domain.RateLimits, width, height int
 	inner := width - panelOverhead
 	var lines []string
 
-	lines = append(lines, s.Title.Render("RATE LIMITS"))
+	title := s.Title.Render("RATE LIMITS")
+	if !limits.FetchedAt.IsZero() {
+		ago := time.Since(limits.FetchedAt)
+		var agoStr string
+		if ago < time.Minute {
+			agoStr = fmt.Sprintf("%ds ago", int(ago.Seconds()))
+		} else {
+			agoStr = fmt.Sprintf("%dm ago", int(ago.Minutes()))
+		}
+		agoRendered := s.Dim.Render(agoStr)
+		gap := inner - lipgloss.Width(title) - lipgloss.Width(agoRendered)
+		if gap < 1 {
+			gap = 1
+		}
+		title = title + strings.Repeat(" ", gap) + agoRendered
+	}
+	lines = append(lines, title)
 
 	if limits.FiveHour == nil && limits.SevenDay == nil {
-		lines = append(lines, s.Dim.Render("No rate limit data"))
+		if limits.Error != "" {
+			lines = append(lines, s.StatusWarn.Render(truncate(limits.Error, inner)))
+		} else {
+			lines = append(lines, s.Dim.Render("No rate limit data"))
+		}
 		content := strings.Join(lines, "\n")
 		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 	}
@@ -275,9 +295,14 @@ func renderWindowCompact(s Styles, label string, w *domain.RateWindow, windowDur
 	bar := utilStyle.Render(strings.Repeat("█", filled)) + s.Dim.Render(strings.Repeat("░", barWidth-filled))
 	line1 := s.Label.Render(label) + utilStyle.Render(fmt.Sprintf(" %5.1f%% ", util)) + bar + " " + burnDot
 
-	// Line 2: "    resets 3h1m"
+	// Line 2: right-aligned "resets 3h1m"
 	resetStr := format.FormatUptime(remaining)
-	line2 := s.Dim.Render(fmt.Sprintf("    resets %s", resetStr))
+	resetText := s.Dim.Render("resets " + resetStr)
+	pad := inner - lipgloss.Width(resetText)
+	if pad < 0 {
+		pad = 0
+	}
+	line2 := strings.Repeat(" ", pad) + resetText
 
 	return line1 + "\n" + line2
 }
