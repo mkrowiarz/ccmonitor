@@ -85,28 +85,15 @@ func (m Model) View() string {
 	// Determine interval in seconds for header display
 	intervalSec := int(m.interval.Seconds())
 
-	// Render header
+	// Render header and footer
 	header := renderHeader(m.styles, m.snapshot, intervalSec, m.width)
-
-	// Render footer
 	footer := renderFooter(m.styles, m.width)
 
-	// Calculate column widths
-	leftWidth := m.width / 3
-	rightWidth := m.width - leftWidth
-
-	// Calculate available height for the grid (subtract header, footer, and spacing)
-	headerHeight := lipgloss.Height(header)
-	footerHeight := lipgloss.Height(footer)
-	availableHeight := m.height - headerHeight - footerHeight
-
-	if availableHeight < 4 {
-		availableHeight = 4
+	// Available height for panels (subtract header + footer lines)
+	panelHeight := m.height - lipgloss.Height(header) - lipgloss.Height(footer)
+	if panelHeight < 4 {
+		panelHeight = 4
 	}
-
-	// Split available height between top and bottom rows
-	topRowHeight := availableHeight / 2
-	bottomRowHeight := availableHeight - topRowHeight
 
 	// Extract data from snapshot
 	var usage *domain.UsageSummary
@@ -118,26 +105,32 @@ func (m Model) View() string {
 		events = m.snapshot.RecentEvents
 	}
 
-	// Render panels
-	todayPanel := renderTodayPanel(m.styles, usage, leftWidth, topRowHeight)
-	lifetimePanel := renderLifetimePanel(m.styles, usage, leftWidth, bottomRowHeight)
-
-	var rightColumn string
+	// Horizontal single-row layout: today | lifetime | sessions [| activity]
+	// Left two panels get fixed ~25% each, sessions/activity gets the rest
+	leftW := m.width / 4
+	if leftW < 24 {
+		leftW = 24
+	}
+	remainW := m.width - leftW*2
+	sessW := remainW
+	actW := 0
 	if m.showActivity {
-		sessionsPanel := renderSessionsPanel(m.styles, sessions, rightWidth, topRowHeight)
-		activityPanel := renderActivityPanel(m.styles, events, rightWidth, bottomRowHeight)
-		rightColumn = lipgloss.JoinVertical(lipgloss.Left, sessionsPanel, activityPanel)
-	} else {
-		sessionsPanel := renderSessionsPanel(m.styles, sessions, rightWidth, availableHeight)
-		rightColumn = sessionsPanel
+		sessW = remainW / 2
+		actW = remainW - sessW
 	}
 
-	leftColumn := lipgloss.JoinVertical(lipgloss.Left, todayPanel, lifetimePanel)
+	todayPanel := renderTodayPanel(m.styles, usage, leftW, panelHeight)
+	lifetimePanel := renderLifetimePanel(m.styles, usage, leftW, panelHeight)
+	sessionsPanel := renderSessionsPanel(m.styles, sessions, sessW, panelHeight)
 
-	// Compose the grid
-	grid := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+	panels := []string{todayPanel, lifetimePanel, sessionsPanel}
+	if m.showActivity {
+		activityPanel := renderActivityPanel(m.styles, events, actW, panelHeight)
+		panels = append(panels, activityPanel)
+	}
 
-	// Join everything vertically
+	grid := lipgloss.JoinHorizontal(lipgloss.Top, panels...)
+
 	return lipgloss.JoinVertical(lipgloss.Left, header, grid, footer)
 }
 

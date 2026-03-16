@@ -43,7 +43,7 @@ func NewStyles() Styles {
 		Panel: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(colorBorder)).
-			Padding(1, 2),
+			Padding(0, 1),
 
 		Title: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(colorTitle)).
