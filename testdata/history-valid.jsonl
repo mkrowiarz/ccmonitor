@@ -1,0 +1,3 @@
+{"display":"/exit","timestamp":1771400432695,"project":"/Users/michal/projects/foo","sessionId":"abc-123"}
+{"display":"Ok, so commit that one...","timestamp":1771400000000,"project":"/Users/michal/projects/bar","sessionId":"def-456"}
+{"display":"Yes","timestamp":1771399000000,"project":"/Users/michal/projects/foo","sessionId":"abc-123"}

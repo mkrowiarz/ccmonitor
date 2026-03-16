@@ -1,0 +1,4 @@
+{"display":"good line","timestamp":1771400432695,"project":"/Users/michal/projects/foo","sessionId":"abc-123"}
+{bad json
+also bad
+{"display":"another good","timestamp":1771400000000,"project":"/Users/michal/projects/bar","sessionId":"def-456"}
