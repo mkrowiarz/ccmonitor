@@ -17,6 +17,8 @@ func handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 		return func() tea.Msg { return TabMsg{Tab: tabDashboard} }
 	case "2":
 		return func() tea.Msg { return TabMsg{Tab: tabActivity} }
+	case "3":
+		return func() tea.Msg { return TabMsg{Tab: tabProcesses} }
 	}
 	return nil
 }

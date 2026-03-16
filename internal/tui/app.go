@@ -15,6 +15,7 @@ import (
 const (
 	tabDashboard = iota
 	tabActivity
+	tabProcesses
 	tabCount // sentinel for wrapping
 )
 
@@ -56,7 +57,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
+		return m, tea.ClearScreen
 
 	case TickMsg:
 		return m, m.collectCmd()
@@ -131,6 +132,8 @@ func (m Model) View() string {
 	switch m.activeTab {
 	case tabActivity:
 		body = renderActivityView(m.styles, usage, events, m.width, panelHeight)
+	case tabProcesses:
+		body = renderProcessesView(m.styles, sessions, m.width, panelHeight)
 	default:
 		body = m.renderDashboard(usage, sessions, rateLimits, panelHeight)
 	}

@@ -125,14 +125,15 @@ func renderActivityView(s Styles, usage *domain.UsageSummary, events []domain.Re
 		if maxEvents < 1 {
 			maxEvents = 1
 		}
-		recentInner := recentW - panelOverhead
+		recentInner := recentW - panelOverhead - 2 // -2 for Width(w-2) on panel
 		for i, ev := range events {
 			if i >= maxEvents {
 				break
 			}
 			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
 			proj := s.Label.Render(truncate(ev.ProjectName, 14))
-			remaining := recentInner - 6 - 15 // time width + proj width approx
+			used := lipgloss.Width(timeStr) + 1 + lipgloss.Width(proj) + 1
+			remaining := recentInner - used
 			if remaining < 10 {
 				remaining = 10
 			}
@@ -279,6 +280,63 @@ func renderWindowCompact(s Styles, label string, w *domain.RateWindow, windowDur
 	line2 := s.Dim.Render(fmt.Sprintf("    resets %s", resetStr))
 
 	return line1 + "\n" + line2
+}
+
+// renderProcessesView renders the full-width Processes tab.
+func renderProcessesView(s Styles, sessions []domain.ActiveSession, width, height int) string {
+	var lines []string
+
+	lines = append(lines, s.Title.Render("PROCESSES"))
+
+	count := len(sessions)
+	if count == 0 {
+		lines = append(lines, "")
+		lines = append(lines, s.Dim.Render("No active processes"))
+		content := strings.Join(lines, "\n")
+		return s.Panel.Width(width - 2).Height(height - 2).Render(content)
+	}
+
+	countLabel := "process"
+	if count > 1 {
+		countLabel = "processes"
+	}
+	lines = append(lines, s.StatusOk.Render(fmt.Sprintf("● %d active %s", count, countLabel)))
+	lines = append(lines, "")
+
+	// Column widths for wide layout
+	colProject := 24
+	colPID := 10
+	colCPU := 10
+	colMem := 10
+	colUptime := 12
+
+	headerRow := fmt.Sprintf("%-*s %-*s %-*s %-*s %-*s",
+		colProject, "PROJECT",
+		colPID, "PID",
+		colCPU, "CPU",
+		colMem, "MEM",
+		colUptime, "UPTIME",
+	)
+	lines = append(lines, s.TableHeader.Render(headerRow))
+
+	for _, sess := range sessions {
+		proj := truncate(sess.ProjectName, colProject)
+		pid := fmt.Sprintf("%d", sess.PID)
+		cpu := fmt.Sprintf("%.1f%%", sess.CPUPercent)
+		mem := fmt.Sprintf("%.1f%%", sess.MemPercent)
+		uptime := format.FormatUptime(sess.Uptime)
+
+		projStr := s.ModelName.Render(fmt.Sprintf("%-*s", colProject, proj))
+		rest := fmt.Sprintf(" %-*s %-*s %-*s %-*s",
+			colPID, pid,
+			colCPU, cpu,
+			colMem, mem,
+			colUptime, uptime,
+		)
+		lines = append(lines, projStr+s.Value.Render(rest))
+	}
+	content := strings.Join(lines, "\n")
+	return s.Panel.Width(width - 2).Height(height - 2).Render(content)
 }
 
 // renderModelTokens renders a list of model token rows, capped at max with "+N more".
