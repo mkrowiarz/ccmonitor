@@ -1,3 +1,5 @@
+//go:build darwin
+
 package claude
 
 import (
@@ -34,3 +36,6 @@ func readOAuthToken() (string, error) {
 	}
 	return token, nil
 }
+
+// rateLimitsSupported returns true on macOS where Keychain credentials are available.
+func rateLimitsSupported() bool { return true }

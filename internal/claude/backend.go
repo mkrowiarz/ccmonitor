@@ -99,13 +99,16 @@ func (b *ClaudeBackend) Collect(ctx context.Context, opts backend.CollectOpts) (
 		}
 	}
 
-	// 4. Fetch rate limits from usage API (best-effort, doesn't affect status)
-	ur := b.usageClient.Get(ctx)
-	if ur.Err != nil {
-		snap.RateLimits.Error = ur.Err.Error()
-		snap.RateLimits.RetryAfter = ur.RetryAfter
-	} else if ur.Limits != nil {
-		snap.RateLimits = *ur.Limits
+	// 4. Fetch rate limits from usage API (macOS only, best-effort)
+	snap.RateLimitsEnabled = rateLimitsSupported()
+	if snap.RateLimitsEnabled {
+		ur := b.usageClient.Get(ctx)
+		if ur.Err != nil {
+			snap.RateLimits.Error = ur.Err.Error()
+			snap.RateLimits.RetryAfter = ur.RetryAfter
+		} else if ur.Limits != nil {
+			snap.RateLimits = *ur.Limits
+		}
 	}
 
 	// Determine overall status

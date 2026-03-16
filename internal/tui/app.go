@@ -120,12 +120,14 @@ func (m Model) View() string {
 	var usage *domain.UsageSummary
 	var sessions []domain.ActiveSession
 	var events []domain.RecentEvent
-	var rateLimits domain.RateLimits
+	var rateLimits *domain.RateLimits
 	if m.snapshot != nil {
 		usage = &m.snapshot.Usage
 		sessions = m.snapshot.ActiveSessions
 		events = m.snapshot.RecentEvents
-		rateLimits = m.snapshot.RateLimits
+		if m.snapshot.RateLimitsEnabled {
+			rateLimits = &m.snapshot.RateLimits
+		}
 	}
 
 	var body string
@@ -143,18 +145,22 @@ func (m Model) View() string {
 
 // renderDashboard renders the horizontal panel layout.
 // When narrow (<100 cols), sessions panel moves to a second row.
-func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits domain.RateLimits, panelHeight int) string {
+func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits *domain.RateLimits, panelHeight int) string {
 	narrow := m.width < 100
+	showRL := rateLimits != nil
 
 	if narrow {
-		colW := m.width / 3
+		cols := 3
+		if !showRL {
+			cols = 2
+		}
+		colW := m.width / cols
 		if colW < 22 {
 			colW = 22
 		}
-		// Give remaining pixels to the last column
-		lastColW := m.width - colW*2
+		lastColW := m.width - colW*(cols-1)
 
-		topHeight := 12 // enough for title + 2 KV + blank + title + 3 models + margin
+		topHeight := 12
 		if topHeight > panelHeight-6 {
 			topHeight = panelHeight - 6
 		}
@@ -162,25 +168,44 @@ func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.Act
 
 		todayPanel := renderTodayPanel(m.styles, usage, colW, topHeight)
 		lifetimePanel := renderLifetimePanel(m.styles, usage, colW, topHeight)
-		rateLimitsPanel := renderRateLimitsPanel(m.styles, rateLimits, lastColW, topHeight)
-		topRow := lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel)
+		var topRow string
+		if showRL {
+			rateLimitsPanel := renderRateLimitsPanel(m.styles, *rateLimits, lastColW, topHeight)
+			topRow = lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel)
+		} else {
+			lifetimePanel = renderLifetimePanel(m.styles, usage, lastColW, topHeight)
+			topRow = lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel)
+		}
 
 		sessionsPanel := renderSessionsPanel(m.styles, sessions, m.width, bottomHeight)
 		return lipgloss.JoinVertical(lipgloss.Left, topRow, sessionsPanel)
 	}
 
-	colW := m.width * 22 / 100
-	if colW < 22 {
-		colW = 22
+	if showRL {
+		colW := m.width * 22 / 100
+		if colW < 22 {
+			colW = 22
+		}
+		sessW := m.width - colW*3
+
+		todayPanel := renderTodayPanel(m.styles, usage, colW, panelHeight)
+		lifetimePanel := renderLifetimePanel(m.styles, usage, colW, panelHeight)
+		rateLimitsPanel := renderRateLimitsPanel(m.styles, *rateLimits, colW, panelHeight)
+		sessionsPanel := renderSessionsPanel(m.styles, sessions, sessW, panelHeight)
+		return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel, sessionsPanel)
 	}
-	sessW := m.width - colW*3
+
+	// No rate limits — 3-column layout
+	colW := m.width / 3
+	if colW < 24 {
+		colW = 24
+	}
+	sessW := m.width - colW*2
 
 	todayPanel := renderTodayPanel(m.styles, usage, colW, panelHeight)
 	lifetimePanel := renderLifetimePanel(m.styles, usage, colW, panelHeight)
-	rateLimitsPanel := renderRateLimitsPanel(m.styles, rateLimits, colW, panelHeight)
 	sessionsPanel := renderSessionsPanel(m.styles, sessions, sessW, panelHeight)
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, rateLimitsPanel, sessionsPanel)
+	return lipgloss.JoinHorizontal(lipgloss.Top, todayPanel, lifetimePanel, sessionsPanel)
 }
 
 // collectCmd creates a command that collects a snapshot from the backend.

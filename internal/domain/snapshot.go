@@ -31,8 +31,9 @@ type BackendSnapshot struct {
 	CollectedAt    time.Time
 	ActiveSessions []ActiveSession
 	Usage          UsageSummary
-	RateLimits     RateLimits
-	RecentEvents   []RecentEvent
+	RateLimits          RateLimits
+	RateLimitsEnabled   bool
+	RecentEvents        []RecentEvent
 	Warnings       []string
 }
 
