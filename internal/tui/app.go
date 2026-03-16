@@ -146,7 +146,7 @@ func (m Model) View() string {
 // renderDashboard renders the horizontal panel layout.
 // When narrow (<100 cols), sessions panel moves to a second row.
 func (m Model) renderDashboard(usage *domain.UsageSummary, sessions []domain.ActiveSession, rateLimits *domain.RateLimits, panelHeight int) string {
-	narrow := m.width < 100
+	narrow := m.width < 120
 	showRL := rateLimits != nil
 
 	if narrow {
