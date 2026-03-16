@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 type historyEntry struct {

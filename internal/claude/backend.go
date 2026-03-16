@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/michal/ccmonitor/internal/backend"
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/backend"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 // ClaudeBackend implements backend.Backend for local Claude Code monitoring.

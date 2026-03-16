@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 // renderHeader renders the top bar showing app title, tabs, status, refresh interval, and time.

@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 // Backend is the interface that each monitoring backend must implement.

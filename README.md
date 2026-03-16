@@ -53,7 +53,7 @@ curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonito
 ### Go install
 
 ```
-go install github.com/michal/ccmonitor@latest
+go install github.com/mkrowiarz/ccmonitor@latest
 ```
 
 ### From source

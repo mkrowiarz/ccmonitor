@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(python3:*)",
+      "Bash(which go:*)",
+      "Bash(ps:*)",
+      "Bash(go mod:*)",
+      "Bash(go get:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go build:*)",
+      "Bash(timeout:*)",
+      "Bash(gtimeout:*)",
+      "Bash(echo:*)",
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(jq:*)",
+      "Bash(git config:*)",
+      "Read(//Users/michal/go/pkg/mod/github.com/!nimble!markets/ntcharts@v0.4.0/**)",
+      "Read(//Users/michal/go/pkg/mod/**)",
+      "Bash(gh run:*)",
+      "Bash(git tag:*)"
+    ]
+  },
+  "spinnerTipsEnabled": false
+}

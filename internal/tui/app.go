@@ -7,8 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/michal/ccmonitor/internal/backend"
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/backend"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 // Tab indices for the TUI views.

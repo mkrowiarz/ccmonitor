@@ -7,9 +7,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/michal/ccmonitor/internal/backend"
-	"github.com/michal/ccmonitor/internal/claude"
-	"github.com/michal/ccmonitor/internal/tui"
+	"github.com/mkrowiarz/ccmonitor/internal/backend"
+	"github.com/mkrowiarz/ccmonitor/internal/claude"
+	"github.com/mkrowiarz/ccmonitor/internal/tui"
 )
 
 var version = "dev"

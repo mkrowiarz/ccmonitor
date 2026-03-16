@@ -1,4 +1,4 @@
-module github.com/michal/ccmonitor
+module github.com/mkrowiarz/ccmonitor
 
 go 1.25.7
 

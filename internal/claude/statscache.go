@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 type statsCache struct {

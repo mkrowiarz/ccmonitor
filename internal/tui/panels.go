@@ -9,8 +9,8 @@ import (
 
 	"github.com/NimbleMarkets/ntcharts/barchart"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/michal/ccmonitor/internal/domain"
-	"github.com/michal/ccmonitor/internal/format"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/format"
 )
 
 // panelOverhead is the horizontal space consumed by border (2) + padding (2).

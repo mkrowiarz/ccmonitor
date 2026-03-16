@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 const (

@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"github.com/michal/ccmonitor/internal/domain"
+	"github.com/mkrowiarz/ccmonitor/internal/domain"
 )
 
 // TickMsg triggers a new data collection cycle.
