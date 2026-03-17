@@ -53,8 +53,10 @@ curl -L https://github.com/mkrowiarz/ccmonitor/releases/latest/download/ccmonito
 ### Go install
 
 ```
-go install github.com/mkrowiarz/ccmonitor@latest
+GOBIN=~/.local/bin go install github.com/mkrowiarz/ccmonitor@latest
 ```
+
+Or without `GOBIN`, it installs to `~/go/bin` by default.
 
 ### From source
 
