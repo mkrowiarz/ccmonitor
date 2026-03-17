@@ -12,3 +12,6 @@ type SnapshotMsg struct {
 	Snapshot *domain.BackendSnapshot
 	Err      error
 }
+
+// resizeDoneMsg is sent after resize events settle.
+type resizeDoneMsg struct{}

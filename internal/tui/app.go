@@ -32,6 +32,7 @@ type Model struct {
 	noRateLimits bool
 	minimal      bool
 	showHelp     bool
+	resizeSeq    int
 }
 
 // Options configures the TUI model.
@@ -64,7 +65,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, tea.ClearScreen
+		m.resizeSeq++
+		seq := m.resizeSeq
+		return m, tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg {
+			_ = seq
+			return resizeDoneMsg{}
+		})
+
+	case resizeDoneMsg:
+		m.resizeSeq--
+		if m.resizeSeq == 0 {
+			return m, tea.ClearScreen
+		}
+		return m, nil
 
 	case TickMsg:
 		return m, m.collectCmd()
