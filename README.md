@@ -103,6 +103,13 @@ ccmonitor -interval 10       # 10s refresh
 
 On Linux, the rate limits panel is hidden and no API calls are made.
 
+## Credits
+
+- [kvaps/claude-code-usage](https://gist.github.com/kvaps/84fa5963df1bff9cec65b57afd54e1e4) — inspiration for the usage API integration
+- [MacDev](https://github.com/arvindjuneja/MacDev) — initial idea for an open-source Claude Code monitor
+- [Catppuccin](https://catppuccin.com/) — color theme
+- [Zellij](https://zellij.dev/) — tmux replacement that makes the Claude Monitor look beautiful
+
 ## Author
 
 Michał Krowiarz — [@mkrowiarz](https://github.com/mkrowiarz)
