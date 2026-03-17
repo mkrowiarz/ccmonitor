@@ -119,10 +119,13 @@ On Linux, the rate limits panel is hidden and no API calls are made.
 - [ntcharts](https://github.com/NimbleMarkets/ntcharts) — terminal bar charts
 - [Catppuccin](https://catppuccin.com/) — color theme
 - [Zellij](https://zellij.dev/) — tmux replacement that makes the Claude Monitor look beautiful
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — AI pair programmer that co-built this project
 
 ## Author
 
 Michał Krowiarz — [@mkrowiarz](https://github.com/mkrowiarz)
+
+Built with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (Anthropic's AI coding agent).
 
 ## License
 
