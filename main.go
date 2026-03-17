@@ -16,10 +16,10 @@ import (
 var version = "dev"
 
 func printUsage() {
-	title := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Bold(true)
-	flagName := lipgloss.NewStyle().Foreground(lipgloss.Color("#CBA6F7"))
-	desc := lipgloss.NewStyle().Foreground(lipgloss.Color("#888899"))
-	def := lipgloss.NewStyle().Foreground(lipgloss.Color("#666677"))
+	title := lipgloss.NewStyle().Foreground(lipgloss.Color(tui.ColorTitle)).Bold(true)
+	flagName := lipgloss.NewStyle().Foreground(lipgloss.Color(tui.ColorModel))
+	desc := lipgloss.NewStyle().Foreground(lipgloss.Color(tui.ColorLabel))
+	def := lipgloss.NewStyle().Foreground(lipgloss.Color(tui.ColorDim))
 
 	fmt.Println()
 	fmt.Println(title.Render("CLAUDE MONITOR") + " " + def.Render(version))

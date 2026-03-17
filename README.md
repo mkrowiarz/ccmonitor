@@ -110,6 +110,32 @@ ccmonitor -minimal           # dashboard only, no activity/analytics tabs
 
 On Linux, the rate limits panel is hidden and no API calls are made.
 
+## Rate limits
+
+The rate limits panel shows your Anthropic API usage across two rolling windows:
+
+- **5-hour window** — short-term burst usage
+- **7-day window** — longer-term sustained usage
+
+Each window displays utilization percentage, a progress bar, time until reset, and a burn-rate indicator dot that compares your usage pace against the window's elapsed time:
+
+| Dot | Condition | Meaning |
+|-----|-----------|---------|
+| Green | usage ≤ elapsed + 5% | On track — usage is proportional to time elapsed |
+| Yellow | usage > elapsed + 5% | Elevated — burning faster than the window replenishes |
+| Red | usage > elapsed + 15% | Hot — at risk of hitting the limit before the window resets |
+
+For example, if 50% of the 5-hour window has elapsed but you've used 70% of your quota, the difference is +20% — the dot turns red.
+
+### How it works
+
+1. On macOS, ccmonitor reads your OAuth access token from the macOS Keychain (`Claude Code-credentials`)
+2. It calls the Anthropic usage API (`api.anthropic.com/api/oauth/usage`) to fetch current utilization
+3. Results are cached locally (`~/.claude/ccmonitor-usage-cache.json`) with a **10-minute TTL** — the API is not called more frequently than that
+4. If the API returns 429 (rate limited), ccmonitor enters a ~10-minute cooldown before retrying
+
+Use `-no-rate-limits` to disable this feature entirely.
+
 ## Credits
 
 - [kvaps/claude-code-usage](https://gist.github.com/kvaps/84fa5963df1bff9cec65b57afd54e1e4) — inspiration for the usage API integration

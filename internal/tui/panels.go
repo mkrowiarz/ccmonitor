@@ -19,6 +19,15 @@ const panelOverhead = 4
 // maxModels is the maximum number of model rows shown before truncating.
 const maxModels = 3
 
+// Fixed column widths for the compact session table (dashboard panel).
+const (
+	sessColPID    = 6
+	sessColCPU    = 6
+	sessColMem    = 6
+	sessColUptime = 8
+	sessFixedW    = sessColPID + sessColCPU + sessColMem + sessColUptime
+)
+
 // renderTodayPanel renders the "Today" usage panel.
 func renderTodayPanel(s Styles, usage *domain.UsageSummary, width, height int) string {
 	inner := width - panelOverhead
@@ -76,7 +85,7 @@ func renderLifetimePanel(s Styles, usage *domain.UsageSummary, width, height int
 }
 
 // Model colors for bar chart segments.
-var modelColors = []string{colorOk, colorModel, colorDegraded, colorError}
+var modelColors = []string{ColorOk, ColorModel, ColorDegraded, ColorError}
 
 // renderActivityTab renders the Activity tab: recent prompts + processes.
 func renderActivityTab(s Styles, sessions []domain.ActiveSession, events []domain.RecentEvent, width, height int) string {
@@ -184,9 +193,9 @@ func renderMessagesBarPanel(s Styles, usage *domain.UsageSummary, width, height 
 	if barH < 3 {
 		barH = 3
 	}
-	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
-	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorOk)).Background(lipgloss.Color(colorOk))
+	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorOk)).Background(lipgloss.Color(ColorOk))
 	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1))
 
 	for _, entry := range entries {
@@ -271,8 +280,8 @@ func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int
 	if barH < 3 {
 		barH = 3
 	}
-	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorDim))
+	axisStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
 	bc := barchart.New(inner, barH, barchart.WithStyles(axisStyle, labelStyle), barchart.WithBarGap(1))
 
 	for _, entry := range entries {
@@ -331,9 +340,7 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 			visible = visible[:maxSessions]
 		}
 
-		colPID, colCPU, colMem, colUptime := 6, 6, 6, 8
-		fixedW := colPID + colCPU + colMem + colUptime
-		colProject := innerWidth - fixedW
+		colProject := innerWidth - sessFixedW
 		if colProject < 8 {
 			colProject = 8
 		}
@@ -346,7 +353,7 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 			uptime := format.FormatUptime(sess.Uptime)
 
 			projPart := s.ModelName.Render(fmt.Sprintf("%-*s", colProject, proj))
-			rest := fmt.Sprintf("%*s%*s%*s%*s", colPID, pid, colCPU, cpu, colMem, mem, colUptime, uptime)
+			rest := fmt.Sprintf("%*s%*s%*s%*s", sessColPID, pid, sessColCPU, cpu, sessColMem, mem, sessColUptime, uptime)
 			lines = append(lines, projPart+s.Value.Render(rest))
 		}
 
@@ -584,19 +591,17 @@ func formatModelKV(s Styles, model, value string, innerWidth int) string {
 }
 
 func formatSessionRow(style lipgloss.Style, project, pid, cpu, mem, uptime string, innerWidth int) string {
-	colPID, colCPU, colMem, colUptime := 6, 6, 6, 8
-	fixedW := colPID + colCPU + colMem + colUptime
-	colProject := innerWidth - fixedW
+	colProject := innerWidth - sessFixedW
 	if colProject < 8 {
 		colProject = 8
 	}
 
 	row := fmt.Sprintf("%-*s%*s%*s%*s%*s",
 		colProject, project,
-		colPID, pid,
-		colCPU, cpu,
-		colMem, mem,
-		colUptime, uptime,
+		sessColPID, pid,
+		sessColCPU, cpu,
+		sessColMem, mem,
+		sessColUptime, uptime,
 	)
 	return style.Render(row)
 }

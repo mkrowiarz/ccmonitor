@@ -2,19 +2,19 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Colors
+// Colors (exported for use in CLI help output).
 const (
-	colorBg       = "#1a1b2e"
-	colorPanel    = "#232436"
-	colorBorder   = "#444466"
-	colorTitle    = "#A6E3A1" // green
-	colorModel    = "#CBA6F7" // purple/magenta
-	colorValue    = "#FFFFFF"
-	colorLabel    = "#888899"
-	colorDim      = "#666677"
-	colorOk       = "#A6E3A1"
-	colorDegraded = "#F9E2AF" // yellow
-	colorError    = "#F38BA8" // red
+	ColorBg       = "#1a1b2e"
+	ColorPanel    = "#232436"
+	ColorBorder   = "#444466"
+	ColorTitle    = "#A6E3A1" // green
+	ColorModel    = "#CBA6F7" // purple/magenta
+	ColorValue    = "#FFFFFF"
+	ColorLabel    = "#888899"
+	ColorDim      = "#666677"
+	ColorOk       = "#A6E3A1"
+	ColorDegraded = "#F9E2AF" // yellow
+	ColorError    = "#F38BA8" // red
 )
 
 // Styles holds all lipgloss styles used by the TUI.
@@ -38,48 +38,48 @@ type Styles struct {
 func NewStyles() Styles {
 	return Styles{
 		App: lipgloss.NewStyle().
-			Background(lipgloss.Color(colorBg)),
+			Background(lipgloss.Color(ColorBg)),
 
 		Panel: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(colorBorder)).
+			BorderForeground(lipgloss.Color(ColorBorder)).
 			Padding(0, 1),
 
 		Title: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTitle)).
+			Foreground(lipgloss.Color(ColorTitle)).
 			Bold(true),
 
 		Label: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorLabel)),
+			Foreground(lipgloss.Color(ColorLabel)),
 
 		Value: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorValue)).
+			Foreground(lipgloss.Color(ColorValue)).
 			Bold(true),
 
 		ModelName: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorModel)),
+			Foreground(lipgloss.Color(ColorModel)),
 
 		StatusOk: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorOk)),
+			Foreground(lipgloss.Color(ColorOk)),
 
 		StatusWarn: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorDegraded)),
+			Foreground(lipgloss.Color(ColorDegraded)),
 
 		StatusErr: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorError)),
+			Foreground(lipgloss.Color(ColorError)),
 
 		Header: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorTitle)).
+			Foreground(lipgloss.Color(ColorTitle)).
 			Bold(true),
 
 		Footer: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorDim)),
+			Foreground(lipgloss.Color(ColorDim)),
 
 		Dim: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorDim)),
+			Foreground(lipgloss.Color(ColorDim)),
 
 		TableHeader: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(colorLabel)).
+			Foreground(lipgloss.Color(ColorLabel)).
 			Bold(true),
 	}
 }
