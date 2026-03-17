@@ -31,6 +31,7 @@ type Model struct {
 	err          error
 	noRateLimits bool
 	minimal      bool
+	showHelp     bool
 }
 
 // Options configures the TUI model.
@@ -90,6 +91,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.showHelp {
+			m.showHelp = false
+			return m, nil
+		}
+		if msg.String() == "?" {
+			m.showHelp = true
+			return m, nil
+		}
 		cmd := handleKeyPress(msg)
 		if cmd != nil {
 			return m, cmd
@@ -150,7 +159,14 @@ func (m Model) View() string {
 		body = m.renderDashboard(usage, sessions, rateLimits, panelHeight)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+	screen := lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+
+	if m.showHelp {
+		showRL := rateLimits != nil
+		screen = renderHelpOverlay(m.styles, m.width, m.height, m.minimal, showRL, screen)
+	}
+
+	return screen
 }
 
 // renderDashboard renders the horizontal panel layout.
