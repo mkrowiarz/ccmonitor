@@ -61,14 +61,10 @@ go install github.com/mkrowiarz/ccmonitor@latest
 ```
 git clone https://github.com/mkrowiarz/ccmonitor.git
 cd ccmonitor
-make install        # installs to /usr/local/bin
+make install        # installs to ~/.local/bin
 ```
 
-Or to a custom location:
-
-```
-make install PREFIX=~/.local
-```
+Make sure `~/.local/bin` is in your `PATH`.
 
 ### Uninstall
 
@@ -79,18 +75,29 @@ make uninstall
 ## Usage
 
 ```
-ccmonitor                    # default: 5s refresh
-ccmonitor -interval 10       # 10s refresh
+ccmonitor                    # default: 10s refresh
+ccmonitor -interval 5        # 5s refresh
+ccmonitor -no-rate-limits    # hide the rate limits panel
+ccmonitor -minimal           # dashboard only, no activity/analytics tabs
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-interval N` | Refresh interval in seconds (default: 10) |
+| `-no-rate-limits` | Disable the rate limits panel |
+| `-minimal` | Dashboard only — no Activity/Analytics tabs |
+| `-version` | Print version and exit |
 
 ### Keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
-| `1` `2` `3` | Switch tab (Dashboard, Activity, Processes) |
-| `Tab` | Cycle tabs |
-| `r` | Force refresh |
 | `q` | Quit |
+| `r` | Force refresh |
+| `Tab` | Cycle tabs |
+| `1` | Dashboard |
+| `2` | Activity |
+| `3` | Analytics |
 
 ## Platform notes
 
@@ -107,6 +114,9 @@ On Linux, the rate limits panel is hidden and no API calls are made.
 
 - [kvaps/claude-code-usage](https://gist.github.com/kvaps/84fa5963df1bff9cec65b57afd54e1e4) — inspiration for the usage API integration
 - [MacDev](https://github.com/arvindjuneja/MacDev) — initial idea for an open-source Claude Code monitor
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — terminal UI framework
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — terminal styling and layout
+- [ntcharts](https://github.com/NimbleMarkets/ntcharts) — terminal bar charts
 - [Catppuccin](https://catppuccin.com/) — color theme
 - [Zellij](https://zellij.dev/) — tmux replacement that makes the Claude Monitor look beautiful
 

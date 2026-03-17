@@ -10,22 +10,25 @@ import (
 )
 
 // renderHeader renders the top bar showing app title, tabs, status, refresh interval, and time.
-func renderHeader(s Styles, snapshot *domain.BackendSnapshot, interval int, activeTab int, width int) string {
-	tabNames := []string{"Dashboard", "Activity", "Analytics"}
-	var tabs []string
-	for i, name := range tabNames {
-		// Hide Processes tab label when narrow
-		if i == tabAnalytics && width < 90 {
-			continue
+func renderHeader(s Styles, snapshot *domain.BackendSnapshot, interval int, activeTab int, width int, minimal bool) string {
+	left := s.Header.Render("CLAUDE MONITOR")
+	if !minimal {
+		tabNames := []string{"Dashboard", "Activity", "Analytics"}
+		var tabs []string
+		for i, name := range tabNames {
+			// Hide Analytics tab label when narrow
+			if i == tabAnalytics && width < 90 {
+				continue
+			}
+			label := fmt.Sprintf(" %d:%s ", i+1, name)
+			if i == activeTab {
+				tabs = append(tabs, s.Header.Render(label))
+			} else {
+				tabs = append(tabs, s.Dim.Render(label))
+			}
 		}
-		label := fmt.Sprintf(" %d:%s ", i+1, name)
-		if i == activeTab {
-			tabs = append(tabs, s.Header.Render(label))
-		} else {
-			tabs = append(tabs, s.Dim.Render(label))
-		}
+		left = left + " " + strings.Join(tabs, "")
 	}
-	left := s.Header.Render("CLAUDE MONITOR") + " " + strings.Join(tabs, "")
 
 	// Determine status
 	status := domain.StatusOk

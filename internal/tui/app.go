@@ -21,28 +21,34 @@ const (
 
 // Model is the root Bubble Tea model for ccmonitor.
 type Model struct {
-	backend   backend.Backend
-	snapshot  *domain.BackendSnapshot
-	interval  time.Duration
-	activeTab int
+	backend      backend.Backend
+	snapshot     *domain.BackendSnapshot
+	interval     time.Duration
+	activeTab    int
 	width        int
 	height       int
 	styles       Styles
 	err          error
+	noRateLimits bool
+	minimal      bool
 }
 
 // Options configures the TUI model.
 type Options struct {
-	Backend  backend.Backend
-	Interval time.Duration
+	Backend      backend.Backend
+	Interval     time.Duration
+	NoRateLimits bool
+	Minimal      bool
 }
 
 // NewModel creates a new TUI model with the given options.
 func NewModel(opts Options) Model {
 	return Model{
-		backend:  opts.Backend,
-		interval: opts.Interval,
-		styles:   NewStyles(),
+		backend:      opts.Backend,
+		interval:     opts.Interval,
+		styles:       NewStyles(),
+		noRateLimits: opts.NoRateLimits,
+		minimal:      opts.Minimal,
 	}
 }
 
@@ -72,9 +78,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.tickCmd()
 
 	case TabMsg:
+		maxTab := tabCount
+		if m.minimal {
+			maxTab = 1 // only dashboard
+		}
 		if msg.Tab == -1 {
-			m.activeTab = (m.activeTab + 1) % tabCount
-		} else {
+			m.activeTab = (m.activeTab + 1) % maxTab
+		} else if msg.Tab < maxTab {
 			m.activeTab = msg.Tab
 		}
 		return m, nil
@@ -107,8 +117,8 @@ func (m Model) View() string {
 	intervalSec := int(m.interval.Seconds())
 
 	// Render header and footer
-	header := renderHeader(m.styles, m.snapshot, intervalSec, m.activeTab, m.width)
-	footer := renderFooter(m.styles, m.width)
+	header := renderHeader(m.styles, m.snapshot, intervalSec, m.activeTab, m.width, m.minimal)
+	footer := renderFooter(m.styles, m.width, m.minimal)
 
 	// Available height for panels (subtract header + footer lines)
 	panelHeight := m.height - lipgloss.Height(header) - lipgloss.Height(footer)
@@ -125,7 +135,7 @@ func (m Model) View() string {
 		usage = &m.snapshot.Usage
 		sessions = m.snapshot.ActiveSessions
 		events = m.snapshot.RecentEvents
-		if m.snapshot.RateLimitsEnabled {
+		if m.snapshot.RateLimitsEnabled && !m.noRateLimits {
 			rateLimits = &m.snapshot.RateLimits
 		}
 	}

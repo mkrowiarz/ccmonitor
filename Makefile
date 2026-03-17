@@ -1,11 +1,13 @@
 APP := ccmonitor
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
-PREFIX ?= /usr/local
+PREFIX ?= $(HOME)/.local
 
 .PHONY: build run test clean install uninstall release
 
-build:
+build: $(APP)
+
+$(APP): $(shell find . -name '*.go' -not -path './dist/*')
 	go build -ldflags "$(LDFLAGS)" -o $(APP) .
 
 run: build
@@ -18,7 +20,7 @@ clean:
 	rm -f $(APP)
 	rm -rf dist/
 
-install: build
+install: $(APP)
 	install -d $(PREFIX)/bin
 	install -m 755 $(APP) $(PREFIX)/bin/$(APP)
 

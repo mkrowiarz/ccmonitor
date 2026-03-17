@@ -98,14 +98,20 @@ func renderRecentPanel(s Styles, events []domain.RecentEvent, width, height int)
 	if len(events) == 0 {
 		lines = append(lines, s.Dim.Render("No recent activity"))
 	} else {
-		maxEvents := height - 4
+		availLines := height - panelOverhead - 1 // subtract title line
+		maxEvents := availLines - 1              // reserve 1 for potential "+N more"
 		if maxEvents < 1 {
 			maxEvents = 1
 		}
-		for i, ev := range events {
-			if i >= maxEvents {
-				break
-			}
+
+		visible := events
+		truncatedCount := 0
+		if len(visible) > maxEvents {
+			truncatedCount = len(visible) - maxEvents
+			visible = visible[:maxEvents]
+		}
+
+		for _, ev := range visible {
 			timeStr := s.Dim.Render(ev.Timestamp.Format("15:04"))
 			proj := s.Label.Render(truncate(ev.ProjectName, 14))
 			used := lipgloss.Width(timeStr) + 1 + lipgloss.Width(proj) + 1
@@ -115,6 +121,10 @@ func renderRecentPanel(s Styles, events []domain.RecentEvent, width, height int)
 			}
 			display := truncate(ev.Display, remaining)
 			lines = append(lines, fmt.Sprintf("%s %s %s", timeStr, proj, display))
+		}
+
+		if truncatedCount > 0 {
+			lines = append(lines, s.Dim.Render(fmt.Sprintf("  +%d more", truncatedCount)))
 		}
 	}
 
@@ -302,7 +312,7 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 		}
 		lines = append(lines, s.StatusOk.Render(fmt.Sprintf("● %d active %s", count, countLabel)))
 
-		// Table header
+		// Fixed-width right columns; project fills the rest.
 		innerWidth := width - panelOverhead
 		header := formatSessionRow(s.TableHeader, "project", "pid", "cpu", "mem", "uptime", innerWidth)
 		lines = append(lines, header)
@@ -321,13 +331,23 @@ func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, heigh
 			visible = visible[:maxSessions]
 		}
 
+		colPID, colCPU, colMem, colUptime := 6, 6, 6, 8
+		fixedW := colPID + colCPU + colMem + colUptime
+		colProject := innerWidth - fixedW
+		if colProject < 8 {
+			colProject = 8
+		}
+
 		for _, sess := range visible {
-			proj := truncate(sess.ProjectName, 14)
+			proj := truncate(sess.ProjectName, colProject-1) // 1 char gap
 			pid := fmt.Sprintf("%d", sess.PID)
 			cpu := fmt.Sprintf("%.1f%%", sess.CPUPercent)
 			mem := fmt.Sprintf("%.1f%%", sess.MemPercent)
 			uptime := format.FormatUptime(sess.Uptime)
-			lines = append(lines, formatSessionRowColored(s, proj, pid, cpu, mem, uptime, innerWidth))
+
+			projPart := s.ModelName.Render(fmt.Sprintf("%-*s", colProject, proj))
+			rest := fmt.Sprintf("%*s%*s%*s%*s", colPID, pid, colCPU, cpu, colMem, mem, colUptime, uptime)
+			lines = append(lines, projPart+s.Value.Render(rest))
 		}
 
 		if truncated > 0 {
@@ -564,37 +584,23 @@ func formatModelKV(s Styles, model, value string, innerWidth int) string {
 }
 
 func formatSessionRow(style lipgloss.Style, project, pid, cpu, mem, uptime string, innerWidth int) string {
-	colProject := 14
-	colPID := 8
-	colCPU := 8
-	colMem := 10
+	colPID, colCPU, colMem, colUptime := 6, 6, 6, 8
+	fixedW := colPID + colCPU + colMem + colUptime
+	colProject := innerWidth - fixedW
+	if colProject < 8 {
+		colProject = 8
+	}
 
-	row := fmt.Sprintf("%-*s %-*s %-*s %-*s %s",
+	row := fmt.Sprintf("%-*s%*s%*s%*s%*s",
 		colProject, project,
 		colPID, pid,
 		colCPU, cpu,
 		colMem, mem,
-		uptime,
+		colUptime, uptime,
 	)
 	return style.Render(row)
 }
 
-// formatSessionRowColored renders a session row with the project name in a distinct color.
-func formatSessionRowColored(s Styles, project, pid, cpu, mem, uptime string, innerWidth int) string {
-	colProject := 14
-	colPID := 8
-	colCPU := 8
-	colMem := 10
-
-	projPart := s.ModelName.Render(fmt.Sprintf("%-*s", colProject, project))
-	rest := fmt.Sprintf(" %-*s %-*s %-*s %s",
-		colPID, pid,
-		colCPU, cpu,
-		colMem, mem,
-		uptime,
-	)
-	return projPart + s.Value.Render(rest)
-}
 
 func formatOptionalCount(v *int64) string {
 	if v == nil {

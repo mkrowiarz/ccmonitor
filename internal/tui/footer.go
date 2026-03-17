@@ -3,7 +3,12 @@ package tui
 import "fmt"
 
 // renderFooter renders the bottom help bar.
-func renderFooter(s Styles, width int) string {
-	text := fmt.Sprintf(" q quit  %s  r refresh  %s  tab/1-3 view", s.Dim.Render("\u00b7"), s.Dim.Render("\u00b7"))
+func renderFooter(s Styles, width int, minimal bool) string {
+	dot := s.Dim.Render("\u00b7")
+	if minimal {
+		text := fmt.Sprintf(" q quit  %s  r refresh", dot)
+		return s.Footer.Width(width).Render(text)
+	}
+	text := fmt.Sprintf(" q quit  %s  r refresh  %s  tab cycle tabs  %s  [1] dashboard  [2] activity  [3] analytics", dot, dot, dot)
 	return s.Footer.Width(width).Render(text)
 }
