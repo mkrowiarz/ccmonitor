@@ -2,6 +2,7 @@
 
 <a href="https://github.com/mkrowiarz/ccmonitor/releases"><img src="https://img.shields.io/github/release/mkrowiarz/ccmonitor.svg" alt="Latest Release"></a>
 <a href="https://github.com/mkrowiarz/ccmonitor/blob/main/LICENSE"><img src="https://img.shields.io/github/license/mkrowiarz/ccmonitor" alt="License"></a>
+
 A terminal dashboard for monitoring [Claude Code](https://docs.anthropic.com/en/docs/claude-code) usage, sessions, and rate limits.
 
 Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
