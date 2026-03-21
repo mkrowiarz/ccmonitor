@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,7 +14,18 @@ import (
 	"github.com/mkrowiarz/ccmonitor/internal/tui"
 )
 
-var version = "dev"
+var version = ""
+
+func init() {
+	if version != "" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	} else {
+		version = "dev"
+	}
+}
 
 func printUsage() {
 	title := lipgloss.NewStyle().Foreground(lipgloss.Color(tui.ColorTitle)).Bold(true)
