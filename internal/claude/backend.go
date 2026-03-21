@@ -14,6 +14,7 @@ import (
 type ClaudeBackend struct {
 	claudeDir   string
 	usageClient *usageClient
+	convScanner *conversationScanner
 }
 
 // Ensure ClaudeBackend implements backend.Backend.
@@ -25,6 +26,7 @@ func New() *ClaudeBackend {
 	return &ClaudeBackend{
 		claudeDir:   filepath.Join(home, ".claude"),
 		usageClient: newUsageClient(),
+		convScanner: newConversationScanner(),
 	}
 }
 
@@ -33,6 +35,7 @@ func NewWithDir(dir string) *ClaudeBackend {
 	return &ClaudeBackend{
 		claudeDir:   dir,
 		usageClient: newUsageClient(),
+		convScanner: newConversationScanner(),
 	}
 }
 
@@ -71,12 +74,11 @@ func (b *ClaudeBackend) Collect(ctx context.Context, opts backend.CollectOpts) (
 		}
 	}
 
-	// 2. Parse stats cache
-	statsPath := filepath.Join(b.claudeDir, "stats-cache.json")
-	usage, statsWarnings, statsErr := parseStatsCache(statsPath)
+	// 2. Compute stats from conversation JSONL files
+	usage, statsWarnings, statsErr := b.convScanner.computeStats(b.claudeDir)
 	snap.Warnings = append(snap.Warnings, statsWarnings...)
 	if statsErr != nil {
-		snap.Warnings = append(snap.Warnings, "stats-cache error: "+statsErr.Error())
+		snap.Warnings = append(snap.Warnings, "conversation scan error: "+statsErr.Error())
 		snap.Status = domain.StatusDegraded
 	} else if usage != nil {
 		snap.Usage = *usage

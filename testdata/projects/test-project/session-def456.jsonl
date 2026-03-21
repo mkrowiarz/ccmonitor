@@ -1,0 +1,2 @@
+{"type":"user","timestamp":"2026-03-21T11:00:00.000Z","sessionId":"session-def456","message":{"role":"user","content":"hello again"}}
+{"type":"assistant","timestamp":"2026-03-21T11:00:01.000Z","sessionId":"session-def456","message":{"model":"claude-opus-4-6","role":"assistant","content":[],"usage":{"input_tokens":500,"output_tokens":200,"cache_read_input_tokens":100,"cache_creation_input_tokens":0}}}
