@@ -17,7 +17,7 @@ import (
 const panelOverhead = 4
 
 // maxModels is the maximum number of model rows shown before truncating.
-const maxModels = 3
+const maxModels = 5
 
 // Fixed column widths for the compact session table (dashboard panel).
 const (
@@ -307,27 +307,36 @@ func renderTokenBarPanel(s Styles, usage *domain.UsageSummary, width, height int
 
 // renderSessionsPanel renders the "Active Sessions" panel.
 func renderSessionsPanel(s Styles, sessions []domain.ActiveSession, width, height int) string {
+	inner := width - panelOverhead
 	var lines []string
 
-	lines = append(lines, s.Title.Render("ACTIVE SESSIONS"))
-
+	title := s.Title.Render("ACTIVE SESSIONS")
 	count := len(sessions)
-	if count == 0 {
-		lines = append(lines, s.Dim.Render("No active sessions"))
-	} else {
+	if count > 0 {
 		countLabel := "instance"
 		if count > 1 {
 			countLabel = "instances"
 		}
-		lines = append(lines, s.StatusOk.Render(fmt.Sprintf("● %d active %s", count, countLabel)))
+		badge := s.StatusOk.Render(fmt.Sprintf("● %d active %s", count, countLabel))
+		gap := inner - lipgloss.Width(title) - lipgloss.Width(badge)
+		if gap < 1 {
+			gap = 1
+		}
+		title = title + strings.Repeat(" ", gap) + badge
+	}
+	lines = append(lines, title)
 
+	if count == 0 {
+		lines = append(lines, s.Dim.Render("No active sessions"))
+	} else {
 		// Fixed-width right columns; project fills the rest.
-		innerWidth := width - panelOverhead
+		innerWidth := inner
 		header := formatSessionRow(s.TableHeader, "project", "pid", "cpu", "mem", "uptime", innerWidth)
+		lines = append(lines, "")
 		lines = append(lines, header)
 
 		// Each session takes 1 line
-		availLines := height - panelOverhead - 3 // title + count + header
+		availLines := height - panelOverhead - 3 // title + blank + header
 		maxSessions := availLines - 1            // reserve 1 for potential "+N more"
 		if maxSessions < 1 {
 			maxSessions = 1
