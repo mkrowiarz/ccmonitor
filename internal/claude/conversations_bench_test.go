@@ -11,6 +11,13 @@ import (
 func TestBenchmarkStartup(t *testing.T) {
 	home, _ := os.UserHomeDir()
 	claudeDir := filepath.Join(home, ".claude")
+
+	// Skip in CI or when no conversation data exists.
+	projectsDir := filepath.Join(claudeDir, "projects")
+	if _, err := os.Stat(projectsDir); err != nil {
+		t.Skip("no ~/.claude/projects directory, skipping benchmark")
+	}
+
 	cachePath := filepath.Join(home, ".ccmonitor", "conv-cache.json")
 
 	// Cold start: remove disk cache
@@ -26,6 +33,10 @@ func TestBenchmarkStartup(t *testing.T) {
 	t.Logf("Cold start: %v (%d files)", cold, len(scanner1.fileCache))
 	if summary.LifetimeMessages != nil {
 		t.Logf("  Messages: %d", *summary.LifetimeMessages)
+	}
+
+	if len(scanner1.fileCache) == 0 {
+		t.Skip("no conversation files found, skipping cache verification")
 	}
 
 	info, err := os.Stat(cachePath)
