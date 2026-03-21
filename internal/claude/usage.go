@@ -67,9 +67,11 @@ type usageClient struct {
 
 func newUsageClient() *usageClient {
 	home, _ := os.UserHomeDir()
+	cacheDir := filepath.Join(home, ".ccmonitor")
+	os.MkdirAll(cacheDir, 0755)
 	u := &usageClient{
 		ttl:       usageCacheTTL,
-		cachePath: filepath.Join(home, ".claude", "ccmonitor-usage-cache.json"),
+		cachePath: filepath.Join(cacheDir, "usage-cache.json"),
 		tokenFn:   readOAuthToken,
 	}
 	u.loadDiskCache()

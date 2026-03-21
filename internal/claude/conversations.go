@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -14,34 +15,52 @@ import (
 )
 
 // conversationScanner computes usage stats by scanning JSONL conversation files.
-// It caches per-file results and only re-parses files whose modification time changed.
+// It caches per-file results keyed by modification time, both in memory and on disk.
 type conversationScanner struct {
 	mu        sync.Mutex
 	fileCache map[string]*fileCacheEntry
+	cachePath string // path to the on-disk cache file
+	dirty     bool   // true if in-memory cache has changed since last save
 }
 
 type fileCacheEntry struct {
 	modTime   time.Time
 	sessionID string
-	// Per-date aggregated stats for this file.
-	dates map[string]*dateStats
+	dates     map[string]*dateStats
 }
 
 type dateStats struct {
-	messages     int64
+	messages      int64
 	tokensByModel map[string]int64
+}
+
+// Serializable versions for the disk cache.
+type convDiskCache struct {
+	Version int                       `json:"version"`
+	Files   map[string]*diskFileEntry `json:"files"`
+}
+
+type diskFileEntry struct {
+	ModTime   time.Time                    `json:"modTime"`
+	SessionID string                       `json:"sessionId"`
+	Dates     map[string]*diskDateStats    `json:"dates"`
+}
+
+type diskDateStats struct {
+	Messages      int64            `json:"messages"`
+	TokensByModel map[string]int64 `json:"tokensByModel"`
 }
 
 // jsonlEntry is the minimal structure we need from each JSONL line.
 type jsonlEntry struct {
-	Type      string          `json:"type"`
-	Timestamp string          `json:"timestamp"`
-	SessionID string          `json:"sessionId"`
-	Message   *jsonlMessage   `json:"message,omitempty"`
+	Type      string        `json:"type"`
+	Timestamp string        `json:"timestamp"`
+	SessionID string        `json:"sessionId"`
+	Message   *jsonlMessage `json:"message,omitempty"`
 }
 
 type jsonlMessage struct {
-	Model string     `json:"model"`
+	Model string      `json:"model"`
 	Usage *jsonlUsage `json:"usage,omitempty"`
 }
 
@@ -60,13 +79,22 @@ func newConversationScanner() *conversationScanner {
 
 // computeStats scans JSONL files under claudeDir/projects and returns a UsageSummary.
 func (cs *conversationScanner) computeStats(claudeDir string) (*domain.UsageSummary, []string, error) {
+	// Set cache path on first call.
+	if cs.cachePath == "" {
+		home, _ := os.UserHomeDir()
+		cacheDir := filepath.Join(home, ".ccmonitor")
+		os.MkdirAll(cacheDir, 0755)
+		cs.cachePath = filepath.Join(cacheDir, "conv-cache.json")
+		cs.loadDiskCache()
+	}
+
 	projectsDir := filepath.Join(claudeDir, "projects")
 
 	// Find all non-subagent JSONL files.
 	var files []string
 	err := filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip inaccessible dirs
+			return nil
 		}
 		if d.IsDir() {
 			if d.Name() == "subagents" {
@@ -86,7 +114,12 @@ func (cs *conversationScanner) computeStats(claudeDir string) (*domain.UsageSumm
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
-	// Track which files still exist for cache cleanup.
+	// Identify files that need parsing (not in cache or modtime changed).
+	type parseJob struct {
+		path    string
+		modTime time.Time
+	}
+	var toParse []parseJob
 	activeFiles := make(map[string]bool, len(files))
 
 	for _, path := range files {
@@ -99,13 +132,57 @@ func (cs *conversationScanner) computeStats(claudeDir string) (*domain.UsageSumm
 
 		cached, ok := cs.fileCache[path]
 		if ok && cached.modTime.Equal(info.ModTime()) {
-			continue // file hasn't changed
+			continue
 		}
 
-		// Parse or re-parse this file.
-		entry := parseConversationFile(path)
-		if entry != nil {
-			cs.fileCache[path] = entry
+		toParse = append(toParse, parseJob{path: path, modTime: info.ModTime()})
+	}
+
+	// Parse files concurrently.
+	if len(toParse) > 0 {
+		workers := runtime.NumCPU()
+		if workers > 8 {
+			workers = 8
+		}
+		if workers > len(toParse) {
+			workers = len(toParse)
+		}
+
+		type parseResult struct {
+			path  string
+			entry *fileCacheEntry
+		}
+
+		jobs := make(chan parseJob, len(toParse))
+		results := make(chan parseResult, len(toParse))
+
+		var wg sync.WaitGroup
+		for range workers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for job := range jobs {
+					entry := parseConversationFile(job.path)
+					results <- parseResult{path: job.path, entry: entry}
+				}
+			}()
+		}
+
+		for _, job := range toParse {
+			jobs <- job
+		}
+		close(jobs)
+
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		for res := range results {
+			if res.entry != nil {
+				cs.fileCache[res.path] = res.entry
+				cs.dirty = true
+			}
 		}
 	}
 
@@ -113,11 +190,78 @@ func (cs *conversationScanner) computeStats(claudeDir string) (*domain.UsageSumm
 	for path := range cs.fileCache {
 		if !activeFiles[path] {
 			delete(cs.fileCache, path)
+			cs.dirty = true
 		}
 	}
 
-	// Aggregate all cached data into a summary.
+	// Persist cache to disk if changed.
+	if cs.dirty {
+		cs.saveDiskCache()
+		cs.dirty = false
+	}
+
 	return cs.aggregate()
+}
+
+func (cs *conversationScanner) loadDiskCache() {
+	data, err := os.ReadFile(cs.cachePath)
+	if err != nil {
+		return
+	}
+
+	var dc convDiskCache
+	if err := json.Unmarshal(data, &dc); err != nil || dc.Version != 1 {
+		return
+	}
+
+	for path, de := range dc.Files {
+		entry := &fileCacheEntry{
+			modTime:   de.ModTime,
+			sessionID: de.SessionID,
+			dates:     make(map[string]*dateStats, len(de.Dates)),
+		}
+		for date, dd := range de.Dates {
+			entry.dates[date] = &dateStats{
+				messages:      dd.Messages,
+				tokensByModel: dd.TokensByModel,
+			}
+		}
+		cs.fileCache[path] = entry
+	}
+}
+
+func (cs *conversationScanner) saveDiskCache() {
+	dc := convDiskCache{
+		Version: 1,
+		Files:   make(map[string]*diskFileEntry, len(cs.fileCache)),
+	}
+
+	for path, entry := range cs.fileCache {
+		de := &diskFileEntry{
+			ModTime:   entry.modTime,
+			SessionID: entry.sessionID,
+			Dates:     make(map[string]*diskDateStats, len(entry.dates)),
+		}
+		for date, ds := range entry.dates {
+			de.Dates[date] = &diskDateStats{
+				Messages:      ds.messages,
+				TokensByModel: ds.tokensByModel,
+			}
+		}
+		dc.Files[path] = de
+	}
+
+	data, err := json.Marshal(dc)
+	if err != nil {
+		return
+	}
+
+	// Write atomically via temp file.
+	tmp := cs.cachePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return
+	}
+	os.Rename(tmp, cs.cachePath)
 }
 
 func parseConversationFile(path string) *fileCacheEntry {
@@ -140,7 +284,7 @@ func parseConversationFile(path string) *fileCacheEntry {
 	}
 
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 256*1024), 1024*1024) // up to 1MB lines
+	scanner.Buffer(make([]byte, 256*1024), 1024*1024)
 
 	for scanner.Scan() {
 		var e jsonlEntry
@@ -172,7 +316,6 @@ func parseConversationFile(path string) *fileCacheEntry {
 			}
 		}
 
-		// Use sessionId from entry if available.
 		if e.SessionID != "" {
 			entry.sessionID = e.SessionID
 		}
@@ -195,10 +338,9 @@ func (e *fileCacheEntry) getOrCreateDate(date string) *dateStats {
 func (cs *conversationScanner) aggregate() (*domain.UsageSummary, []string, error) {
 	today := time.Now().Format("2006-01-02")
 
-	// Per-date aggregations.
 	type dayAgg struct {
-		messages     int64
-		sessions     map[string]bool
+		messages      int64
+		sessions      map[string]bool
 		tokensByModel map[string]int64
 	}
 	days := make(map[string]*dayAgg)
@@ -235,7 +377,6 @@ func (cs *conversationScanner) aggregate() (*domain.UsageSummary, []string, erro
 		SourceDate: today,
 	}
 
-	// Today's stats.
 	if d, ok := days[today]; ok {
 		msgs := d.messages
 		sess := int64(len(d.sessions))
@@ -256,7 +397,6 @@ func (cs *conversationScanner) aggregate() (*domain.UsageSummary, []string, erro
 		summary.TodaySessions = &zero
 	}
 
-	// Lifetime stats.
 	ltSess := int64(len(allSessions))
 	summary.LifetimeMessages = &totalMessages
 	summary.LifetimeSessions = &ltSess
@@ -270,7 +410,6 @@ func (cs *conversationScanner) aggregate() (*domain.UsageSummary, []string, erro
 		return summary.LifetimeTokens[i].ModelName < summary.LifetimeTokens[j].ModelName
 	})
 
-	// Daily activity history.
 	for date, d := range days {
 		summary.DailyActivity = append(summary.DailyActivity, domain.DailyActivityEntry{
 			Date:         date,
