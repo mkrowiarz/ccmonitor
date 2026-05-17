@@ -17,6 +17,10 @@ const (
 	usageEndpoint = "https://api.anthropic.com/api/oauth/usage"
 	usageBetaTag  = "oauth-2025-04-20"
 	usageCacheTTL = 10 * time.Minute
+	// usageMaxStale is the absolute upper bound on cached data age.
+	// Past this, cache is never returned even during API cooldown — stale
+	// utilization is worse than no utilization.
+	usageMaxStale = 1 * time.Hour
 )
 
 // usageResponse is the JSON shape returned by the usage API.
@@ -87,17 +91,22 @@ func (u *usageClient) loadDiskCache() {
 	if err := json.Unmarshal(data, &dc); err != nil {
 		return
 	}
-	// Restore cached window data if present
+	// Restore cached window data if present, dropping windows whose
+	// ResetsAt has already passed (server-side already reset; cached
+	// utilization is meaningless).
 	if dc.FiveHour != nil || dc.SevenDay != nil {
+		now := time.Now()
 		rl := &domain.RateLimits{FetchedAt: dc.FetchedAt}
-		if dc.FiveHour != nil {
+		if dc.FiveHour != nil && now.Before(dc.FiveHour.ResetsAt) {
 			rl.FiveHour = &domain.RateWindow{Utilization: dc.FiveHour.Utilization, ResetsAt: dc.FiveHour.ResetsAt}
 		}
-		if dc.SevenDay != nil {
+		if dc.SevenDay != nil && now.Before(dc.SevenDay.ResetsAt) {
 			rl.SevenDay = &domain.RateWindow{Utilization: dc.SevenDay.Utilization, ResetsAt: dc.SevenDay.ResetsAt}
 		}
-		u.cached = rl
-		u.fetchedAt = dc.FetchedAt
+		if rl.FiveHour != nil || rl.SevenDay != nil {
+			u.cached = rl
+			u.fetchedAt = dc.FetchedAt
+		}
 	}
 	// Restore retry-after if still in the future
 	if !dc.RetryAfter.IsZero() && time.Now().Before(dc.RetryAfter) {
@@ -142,16 +151,39 @@ func (u *usageClient) Get(ctx context.Context) usageResult {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	// If in cooldown, don't call the API at all
-	if !u.retryAfter.IsZero() && time.Now().Before(u.retryAfter) {
-		if u.cached != nil {
+	now := time.Now()
+
+	// Drop windows past their ResetsAt — server has reset them, cached
+	// utilization is stale. Force a refetch when this happens.
+	cacheExpired := false
+	if u.cached != nil {
+		if u.cached.FiveHour != nil && !now.Before(u.cached.FiveHour.ResetsAt) {
+			u.cached.FiveHour = nil
+			cacheExpired = true
+		}
+		if u.cached.SevenDay != nil && !now.Before(u.cached.SevenDay.ResetsAt) {
+			u.cached.SevenDay = nil
+			cacheExpired = true
+		}
+		if u.cached.FiveHour == nil && u.cached.SevenDay == nil {
+			u.cached = nil
+		}
+	}
+
+	// Hard staleness guard: never serve cache older than usageMaxStale,
+	// even during API cooldown.
+	cacheUsable := u.cached != nil && time.Since(u.fetchedAt) < usageMaxStale
+
+	// If in cooldown and not forced to refetch, return cache (when usable).
+	if !cacheExpired && !u.retryAfter.IsZero() && now.Before(u.retryAfter) {
+		if cacheUsable {
 			return usageResult{Limits: u.cached}
 		}
 		return usageResult{Err: u.lastErr, RetryAfter: u.retryAfter}
 	}
 
-	// Return cached data if still fresh
-	if u.cached != nil && time.Since(u.fetchedAt) < u.ttl {
+	// Return cached data if still fresh (and no window expired).
+	if !cacheExpired && cacheUsable && time.Since(u.fetchedAt) < u.ttl {
 		return usageResult{Limits: u.cached}
 	}
 
@@ -160,7 +192,7 @@ func (u *usageClient) Get(ctx context.Context) usageResult {
 		u.lastErr = err
 		u.retryAfter = time.Now().Add(u.ttl + time.Second)
 		u.saveRetryState(err.Error(), u.retryAfter)
-		if u.cached != nil {
+		if cacheUsable {
 			return usageResult{Limits: u.cached}
 		}
 		return usageResult{Err: err, RetryAfter: u.retryAfter}
@@ -170,10 +202,10 @@ func (u *usageClient) Get(ctx context.Context) usageResult {
 	u.lastErr = nil
 	u.retryAfter = time.Time{}
 
-	now := time.Now()
-	result.FetchedAt = now
+	fetchedAt := time.Now()
+	result.FetchedAt = fetchedAt
 	u.cached = result
-	u.fetchedAt = now
+	u.fetchedAt = fetchedAt
 	u.saveDiskCache(result)
 	return usageResult{Limits: result}
 }
