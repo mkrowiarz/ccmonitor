@@ -71,6 +71,19 @@ make install        # installs to ~/.local/bin
 
 Make sure `~/.local/bin` is in your `PATH`.
 
+### Update
+
+```
+ccmonitor update
+```
+
+Checks the latest GitHub release and, if newer than the running build, downloads
+the matching binary for your platform and atomically replaces the current
+executable in place. Requires write permission to the binary's directory — if it
+lives somewhere root-owned (e.g. `/usr/local/bin`), re-run with `sudo` or
+reinstall manually. Builds installed via `go install` report no version and will
+always update to the latest release.
+
 ### Uninstall
 
 ```
@@ -98,6 +111,7 @@ ccmonitor -waybar            # print one Waybar JSON line and exit
 | Command | Description |
 |---------|-------------|
 | `waybar-setup` | Print [Waybar](#waybar) module setup instructions and exit |
+| `update` | Update ccmonitor to the latest GitHub release (see [Update](#update)) |
 
 ### Keyboard shortcuts
 

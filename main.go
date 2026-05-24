@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mkrowiarz/ccmonitor/internal/backend"
 	"github.com/mkrowiarz/ccmonitor/internal/claude"
+	"github.com/mkrowiarz/ccmonitor/internal/selfupdate"
 	"github.com/mkrowiarz/ccmonitor/internal/tui"
 	"github.com/mkrowiarz/ccmonitor/internal/waybar"
 )
@@ -45,6 +46,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println(title.Render("COMMANDS"))
 	fmt.Println("  " + flagName.Render(fmt.Sprintf("%-20s", "waybar-setup")) + desc.Render("Print Waybar module setup instructions and exit"))
+	fmt.Println("  " + flagName.Render(fmt.Sprintf("%-20s", "update")) + desc.Render("Update ccmonitor to the latest release"))
 	fmt.Println()
 	fmt.Println(title.Render("FLAGS"))
 
@@ -72,13 +74,24 @@ func printUsage() {
 
 func main() {
 	// Subcommands are matched before flag parsing.
-	if len(os.Args) > 1 && os.Args[1] == "waybar-setup" {
-		exe, err := os.Executable()
-		if err != nil {
-			exe = "ccmonitor"
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "waybar-setup":
+			exe, err := os.Executable()
+			if err != nil {
+				exe = "ccmonitor"
+			}
+			fmt.Print(waybar.SetupText(exe))
+			return
+		case "update":
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			if err := selfupdate.Update(ctx, version, os.Stdout); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		}
-		fmt.Print(waybar.SetupText(exe))
-		return
 	}
 
 	interval := flag.Int("interval", 10, "refresh interval in seconds")
