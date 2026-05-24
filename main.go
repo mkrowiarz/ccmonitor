@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/mkrowiarz/ccmonitor/internal/backend"
 	"github.com/mkrowiarz/ccmonitor/internal/claude"
 	"github.com/mkrowiarz/ccmonitor/internal/tui"
+	"github.com/mkrowiarz/ccmonitor/internal/waybar"
 )
 
 var version = ""
@@ -48,6 +50,7 @@ func printUsage() {
 		{"-interval N", "10", "Refresh interval in seconds"},
 		{"-no-rate-limits", "", "Disable the rate limits panel"},
 		{"-minimal", "", "Dashboard only, no activity/analytics tabs"},
+		{"-waybar", "", "Print one Waybar JSON line for rate limits and exit"},
 		{"-backend NAME", "claude", "Backend to use"},
 		{"-version", "", "Print version and exit"},
 	}
@@ -68,6 +71,7 @@ func main() {
 	backendName := flag.String("backend", "claude", "backend to use")
 	noRateLimits := flag.Bool("no-rate-limits", false, "disable the rate limits panel")
 	minimal := flag.Bool("minimal", false, "dashboard only, no activity/analytics tabs")
+	waybarOut := flag.Bool("waybar", false, "print one Waybar JSON line for rate limits and exit")
 	showVersion := flag.Bool("version", false, "print version and exit")
 
 	flag.Usage = printUsage
@@ -86,6 +90,25 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\nAvailable backends: %v\n", err, backend.List())
 		os.Exit(1)
+	}
+
+	// Waybar mode: print one JSON line for rate limits and exit (no TUI).
+	if *waybarOut {
+		rp, ok := b.(backend.RateLimitProvider)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Error: backend %q does not provide rate limits\n", b.Name())
+			os.Exit(1)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		rl, enabled := rp.RateLimits(ctx)
+		line, err := waybar.Render(rl, enabled)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(line)
+		return
 	}
 
 	// Create and run Bubble Tea program

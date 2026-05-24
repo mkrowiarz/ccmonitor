@@ -84,6 +84,7 @@ ccmonitor                    # default: 10s refresh
 ccmonitor -interval 5        # 5s refresh
 ccmonitor -no-rate-limits    # hide the rate limits panel
 ccmonitor -minimal           # dashboard only, no activity/analytics tabs
+ccmonitor -waybar            # print one Waybar JSON line and exit
 ```
 
 | Flag | Description |
@@ -91,6 +92,7 @@ ccmonitor -minimal           # dashboard only, no activity/analytics tabs
 | `-interval N` | Refresh interval in seconds (default: 10) |
 | `-no-rate-limits` | Disable the rate limits panel |
 | `-minimal` | Dashboard only — no Activity/Analytics tabs |
+| `-waybar` | Print one [Waybar](#waybar) JSON line for rate limits and exit |
 | `-version` | Print version and exit |
 
 ### Keyboard shortcuts
@@ -111,9 +113,7 @@ ccmonitor -minimal           # dashboard only, no activity/analytics tabs
 | Process monitoring | `ps` + `lsof` | `ps` + `/proc` |
 | Usage stats | `~/.claude/stats-cache.json` | `~/.claude/stats-cache.json` |
 | Activity history | `~/.claude/history.jsonl` | `~/.claude/history.jsonl` |
-| Rate limits | Keychain + OAuth API | Not available |
-
-On Linux, the rate limits panel is hidden and no API calls are made.
+| Rate limits | Keychain + OAuth API | `~/.claude/.credentials.json` + OAuth API |
 
 ## Rate limits
 
@@ -134,12 +134,42 @@ For example, if 50% of the 5-hour window has elapsed but you've used 70% of your
 
 ### How it works
 
-1. On macOS, ccmonitor reads your OAuth access token from the macOS Keychain (`Claude Code-credentials`)
+1. ccmonitor reads your OAuth access token — from the macOS Keychain (`Claude Code-credentials`) on macOS, or from `~/.claude/.credentials.json` on Linux
 2. It calls the Anthropic usage API (`api.anthropic.com/api/oauth/usage`) to fetch current utilization
-3. Results are cached locally (`~/.claude/ccmonitor-usage-cache.json`) with a **10-minute TTL** — the API is not called more frequently than that
+3. Results are cached locally (`~/.ccmonitor/usage-cache.json`) with a **10-minute TTL** — the API is not called more frequently than that
 4. If the API returns 429 (rate limited), ccmonitor enters a ~10-minute cooldown before retrying
 
 Use `-no-rate-limits` to disable this feature entirely.
+
+## Waybar
+
+`ccmonitor -waybar` prints a single line of [Waybar](https://github.com/Alexays/Waybar) JSON
+(`text`, `tooltip`, `class`) describing your rate-limit windows, then exits. It reuses the same
+10-minute on-disk cache as the dashboard, so polling every minute only hits the API every 10 minutes.
+
+Add a custom module to `~/.config/waybar/config.jsonc`:
+
+```jsonc
+"custom/claude": {
+    "exec": "ccmonitor -waybar",
+    "return-type": "json",
+    "interval": 60,
+    "tooltip": true,
+    "on-click": "ghostty -e ccmonitor"  // optional: open the full dashboard
+}
+```
+
+…and reference `"custom/claude"` in one of your `modules-*` arrays. The module exposes a CSS
+`class` you can style by utilization:
+
+```css
+#custom-claude.ok       { color: #a6d189; }            /* < 50%  */
+#custom-claude.warning  { color: #e5c890; }            /* 50–80% */
+#custom-claude.critical { color: #e78284; font-weight: bold; } /* ≥ 80% */
+#custom-claude.error    { color: #838ba7; }            /* token missing / API down */
+```
+
+The `text` starts with a Nerd Font glyph (`󰚩`), so the module needs a Nerd Font in your bar.
 
 ## Credits
 

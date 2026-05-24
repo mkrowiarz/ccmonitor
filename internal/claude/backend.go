@@ -17,8 +17,11 @@ type ClaudeBackend struct {
 	convScanner *conversationScanner
 }
 
-// Ensure ClaudeBackend implements backend.Backend.
-var _ backend.Backend = (*ClaudeBackend)(nil)
+// Ensure ClaudeBackend implements the backend interfaces.
+var (
+	_ backend.Backend           = (*ClaudeBackend)(nil)
+	_ backend.RateLimitProvider = (*ClaudeBackend)(nil)
+)
 
 // New creates a ClaudeBackend using ~/.claude as the data directory.
 func New() *ClaudeBackend {
@@ -42,6 +45,26 @@ func NewWithDir(dir string) *ClaudeBackend {
 // Name returns the backend name.
 func (b *ClaudeBackend) Name() string {
 	return "claude"
+}
+
+// RateLimits fetches only the usage/rate-limit windows, skipping the heavier
+// process, conversation, and history scans done by Collect. The bool reports
+// whether rate limits are supported on the current platform. Results are served
+// from the usage client's on-disk cache between API refreshes, so this is cheap
+// to call on a short polling interval. Implements backend.RateLimitProvider.
+func (b *ClaudeBackend) RateLimits(ctx context.Context) (domain.RateLimits, bool) {
+	if !rateLimitsSupported() {
+		return domain.RateLimits{}, false
+	}
+	var rl domain.RateLimits
+	ur := b.usageClient.Get(ctx)
+	if ur.Err != nil {
+		rl.Error = ur.Err.Error()
+		rl.RetryAfter = ur.RetryAfter
+	} else if ur.Limits != nil {
+		rl = *ur.Limits
+	}
+	return rl, true
 }
 
 // Collect gathers a snapshot of Claude Code activity.
@@ -101,16 +124,10 @@ func (b *ClaudeBackend) Collect(ctx context.Context, opts backend.CollectOpts) (
 		}
 	}
 
-	// 4. Fetch rate limits from usage API (macOS only, best-effort)
-	snap.RateLimitsEnabled = rateLimitsSupported()
-	if snap.RateLimitsEnabled {
-		ur := b.usageClient.Get(ctx)
-		if ur.Err != nil {
-			snap.RateLimits.Error = ur.Err.Error()
-			snap.RateLimits.RetryAfter = ur.RetryAfter
-		} else if ur.Limits != nil {
-			snap.RateLimits = *ur.Limits
-		}
+	// 4. Fetch rate limits from usage API (best-effort)
+	if rl, enabled := b.RateLimits(ctx); enabled {
+		snap.RateLimitsEnabled = true
+		snap.RateLimits = rl
 	}
 
 	// Determine overall status

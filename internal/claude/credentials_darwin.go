@@ -3,7 +3,6 @@
 package claude
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -20,21 +19,7 @@ func readOAuthToken() (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("empty keychain entry")
 	}
-
-	var creds struct {
-		ClaudeAiOauth struct {
-			AccessToken string `json:"accessToken"`
-		} `json:"claudeAiOauth"`
-	}
-	if err := json.Unmarshal([]byte(raw), &creds); err != nil {
-		return "", fmt.Errorf("credential JSON parse error: %w", err)
-	}
-
-	token := creds.ClaudeAiOauth.AccessToken
-	if token == "" {
-		return "", fmt.Errorf("no access token in credentials")
-	}
-	return token, nil
+	return parseAccessToken([]byte(raw))
 }
 
 // rateLimitsSupported returns true on macOS where Keychain credentials are available.
