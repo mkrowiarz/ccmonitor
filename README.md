@@ -178,10 +178,20 @@ with the binary's absolute path filled in. The manual steps are:
 }
 ```
 
-…and reference `"custom/claude"` in one of your `modules-*` arrays. The module exposes a CSS
-`class` you can style by utilization:
+…and reference `"custom/claude"` in one of your `modules-*` arrays. Give the module the same
+"pill" look as the rest of your bar (tweak to match your theme, or fold `#custom-claude` into
+your existing pill selector), then layer the utilization colors on top via the CSS `class`:
 
 ```css
+#custom-claude {
+    padding: 4px 10px;
+    margin: 0px 2px;
+    background-color: rgba(48, 52, 70, 0.35);
+    border: 2px solid rgba(98, 104, 128, 0);
+    border-radius: 5px;
+}
+#custom-claude:hover    { border: 2px solid rgba(98, 104, 128, 1); }
+
 #custom-claude.ok       { color: #a6d189; }            /* < 50%  */
 #custom-claude.warning  { color: #e5c890; }            /* 50–80% */
 #custom-claude.critical { color: #e78284; font-weight: bold; } /* ≥ 80% */

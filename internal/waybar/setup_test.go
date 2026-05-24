@@ -10,7 +10,7 @@ func TestSetupTextEmbedsExecPath(t *testing.T) {
 	if !strings.Contains(got, `"/home/u/.local/bin/ccmonitor -waybar"`) {
 		t.Errorf("setup text missing exec path with -waybar:\n%s", got)
 	}
-	for _, want := range []string{"custom/claude", "modules-right", "#custom-claude.critical", "SIGUSR2"} {
+	for _, want := range []string{"custom/claude", "modules-right", "#custom-claude.critical", "border-radius", "#custom-claude {", "SIGUSR2"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("setup text missing %q", want)
 		}
