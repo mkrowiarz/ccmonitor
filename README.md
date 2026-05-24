@@ -95,6 +95,10 @@ ccmonitor -waybar            # print one Waybar JSON line and exit
 | `-waybar` | Print one [Waybar](#waybar) JSON line for rate limits and exit |
 | `-version` | Print version and exit |
 
+| Command | Description |
+|---------|-------------|
+| `waybar-setup` | Print [Waybar](#waybar) module setup instructions and exit |
+
 ### Keyboard shortcuts
 
 | Key | Action |
@@ -147,7 +151,8 @@ Use `-no-rate-limits` to disable this feature entirely.
 (`text`, `tooltip`, `class`) describing your rate-limit windows, then exits. It reuses the same
 10-minute on-disk cache as the dashboard, so polling every minute only hits the API every 10 minutes.
 
-Add a custom module to `~/.config/waybar/config.jsonc`:
+Run `ccmonitor waybar-setup` to print ready-to-paste config (module JSON, CSS, and reload steps)
+with the binary's absolute path filled in. The manual steps are:
 
 ```jsonc
 "custom/claude": {

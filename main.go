@@ -41,6 +41,10 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println(title.Render("USAGE"))
 	fmt.Println("  " + flagName.Render("ccmonitor") + " " + desc.Render("[flags]"))
+	fmt.Println("  " + flagName.Render("ccmonitor") + " " + desc.Render("<command>"))
+	fmt.Println()
+	fmt.Println(title.Render("COMMANDS"))
+	fmt.Println("  " + flagName.Render(fmt.Sprintf("%-20s", "waybar-setup")) + desc.Render("Print Waybar module setup instructions and exit"))
 	fmt.Println()
 	fmt.Println(title.Render("FLAGS"))
 
@@ -67,6 +71,16 @@ func printUsage() {
 }
 
 func main() {
+	// Subcommands are matched before flag parsing.
+	if len(os.Args) > 1 && os.Args[1] == "waybar-setup" {
+		exe, err := os.Executable()
+		if err != nil {
+			exe = "ccmonitor"
+		}
+		fmt.Print(waybar.SetupText(exe))
+		return
+	}
+
 	interval := flag.Int("interval", 10, "refresh interval in seconds")
 	backendName := flag.String("backend", "claude", "backend to use")
 	noRateLimits := flag.Bool("no-rate-limits", false, "disable the rate limits panel")
