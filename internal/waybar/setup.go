@@ -24,7 +24,7 @@ func SetupText(execPath string) string {
         "return-type": "json",
         "interval": 60,
         "tooltip": true
-        // "on-click": "$TERMINAL -e ccmonitor"   // optional: open the dashboard
+        // "on-click": "$TERMINAL -e ccmonitor"   // optional: open the dashboard (see step 4)
     },
 `, execPath+" -waybar")
 
@@ -48,7 +48,31 @@ func SetupText(execPath string) string {
 	b.WriteString("    #custom-claude.critical { color: #f38ba8; font-weight: bold; } /* >= 80% */\n")
 	b.WriteString("    #custom-claude.error    { color: #6c7086; }            /* token missing / API down */\n")
 
-	b.WriteString("\n4. Reload Waybar:\n\n")
+	b.WriteString("\n4. Click to open the full dashboard in a popup (optional, Hyprland).\n")
+	b.WriteString("   Simplest: set the on-click above to \"$TERMINAL -e ccmonitor\".\n")
+	b.WriteString("   For a floating, toggleable dropdown, point on-click at a script:\n\n")
+	b.WriteString("        \"on-click\": \"~/.config/waybar/scripts/ccmonitor-toggle.sh\"\n\n")
+	b.WriteString("   ~/.config/waybar/scripts/ccmonitor-toggle.sh:\n\n")
+	fmt.Fprintf(&b, `        #!/usr/bin/env bash
+        set -euo pipefail
+        class=com.ccmonitor.popup   # must be a valid GTK app-id (reverse-DNS, has a dot)
+        ws=ccmonitor
+        if hyprctl clients -j | jq -e ".[] | select(.class==\"$class\")" >/dev/null; then
+            hyprctl dispatch togglespecialworkspace "$ws"
+        else
+            hyprctl dispatch exec "[workspace special:$ws silent] %s --class=$class -e ccmonitor"
+            hyprctl dispatch togglespecialworkspace "$ws"
+        fi
+`, "$TERMINAL")
+	b.WriteString("\n   and a Hyprland window rule (float + center the popup):\n\n")
+	b.WriteString("        windowrulev2 = float, class:^(com\\.ccmonitor\\.popup)$\n")
+	b.WriteString("        windowrulev2 = size 900 520, class:^(com\\.ccmonitor\\.popup)$\n")
+	b.WriteString("        windowrulev2 = center, class:^(com\\.ccmonitor\\.popup)$\n\n")
+	b.WriteString("   Note: some terminals (e.g. ghostty) ignore --class unless it is a\n")
+	b.WriteString("   valid GTK app-id containing a dot; a bare name like 'ccmonitor-popup'\n")
+	b.WriteString("   is silently dropped, which breaks the toggle's already-open check.\n")
+
+	b.WriteString("\n5. Reload Waybar:\n\n")
 	b.WriteString("    killall -SIGUSR2 waybar\n")
 
 	b.WriteString("\nThe module text starts with a Nerd Font glyph; use a Nerd Font in your bar.\n")

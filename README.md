@@ -200,6 +200,38 @@ your existing pill selector), then layer the utilization colors on top via the C
 
 The `text` starts with a Nerd Font glyph (`󰚩`), so the module needs a Nerd Font in your bar.
 
+### Click to open the dashboard
+
+The simplest `on-click` just launches the TUI in a terminal: `"on-click": "ghostty -e ccmonitor"`.
+For a floating, toggleable dropdown on Hyprland, point `on-click` at a small script that spawns
+the TUI on a special workspace and toggles its visibility:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+class=com.ccmonitor.popup   # must be a valid GTK app-id (reverse-DNS, has a dot)
+ws=ccmonitor
+if hyprctl clients -j | jq -e ".[] | select(.class==\"$class\")" >/dev/null; then
+    hyprctl dispatch togglespecialworkspace "$ws"
+else
+    hyprctl dispatch exec "[workspace special:$ws silent] ghostty --class=$class -e ccmonitor"
+    hyprctl dispatch togglespecialworkspace "$ws"
+fi
+```
+
+…plus a Hyprland rule to float and center it:
+
+```
+windowrulev2 = float,        class:^(com\.ccmonitor\.popup)$
+windowrulev2 = size 900 520, class:^(com\.ccmonitor\.popup)$
+windowrulev2 = center,       class:^(com\.ccmonitor\.popup)$
+```
+
+> **Gotcha:** some terminals (e.g. ghostty) ignore `--class` unless it's a valid GTK app-id
+> containing a dot. A bare name like `ccmonitor-popup` is silently dropped (ghostty falls back
+> to `com.mitchellh.ghostty`), which breaks both the window rule and the script's already-open
+> check — so every click spawns a new instance.
+
 ## Credits
 
 - [kvaps/claude-code-usage](https://gist.github.com/kvaps/84fa5963df1bff9cec65b57afd54e1e4) — inspiration for the usage API integration
