@@ -475,7 +475,7 @@ func renderWindowCompact(s Styles, label string, w *domain.RateWindow, windowDur
 	line1 := s.Label.Render(label) + utilStyle.Render(fmt.Sprintf(" %5.1f%% ", util)) + bar + " " + burnDot
 
 	// Line 2: right-aligned "resets 3h1m"
-	resetStr := format.FormatUptime(remaining)
+	resetStr := format.FormatReset(remaining)
 	resetText := s.Dim.Render("resets " + resetStr)
 	pad := inner - lipgloss.Width(resetText)
 	if pad < 0 {
